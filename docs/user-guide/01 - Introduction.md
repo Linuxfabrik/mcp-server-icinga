@@ -85,6 +85,24 @@ Linux System Engineers who:
 - Want to triage and operate their monitoring from a chat interface without writing API requests by hand
 
 
+## How Claude finds the tools
+
+It looks like magic in the chat window, but the wiring is straightforward. When the MCP client (Claude Desktop, Claude Code, ...) starts up, it reads its `mcpServers` configuration and spawns each entry as a subprocess. Communication between the client and the server happens over stdin/stdout using the [Model Context Protocol](https://modelcontextprotocol.io). Four steps:
+
+1. **Spawn.** The client launches `mcp-server-icinga` and injects the configured environment variables. The server reads its YAML config, validates it, and goes into the MCP message loop.
+
+2. **Handshake.** Right after the spawn the client asks the server `tools/list`. The server replies with every tool it has registered: name, human-readable description (the function's docstring), and a JSON Schema for the arguments. This list is then injected into every conversation turn so the LLM knows what is available.
+
+3. **Intent matching.** When you ask "what is the status of the icinga server?", the LLM matches your wording against the available tool descriptions, picks the most relevant one (`health_check`) and emits a structured tool call with the right arguments.
+
+4. **Call and response.** The client forwards the call to the server, the server runs the corresponding Python function, returns a result, the LLM gets that result back and turns it into a natural-language answer.
+
+Two consequences fall out of this design and are worth knowing while you write configuration or read tool output:
+
+- **Tool descriptions are the single source of intent matching.** A tool with a vague docstring will be invoked at the wrong moments, or not at all. We document tools assuming the LLM is the only reader.
+- **The server, not Claude, controls what is possible.** Tools are only registered for backends that exist in the configuration. A configuration without `icinga2_core.write_password` simply does not expose write tools, so Claude cannot accidentally acknowledge or schedule a downtime even if you ask it to. This is the principle of least privilege, applied to the MCP surface.
+
+
 ## Where to go next
 
 - [Installation](02 - Installation.md): get the server onto your machine
