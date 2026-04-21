@@ -1,0 +1,99 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+authors = [
+    { name = "Linuxfabrik GmbH, Zurich, Switzerland", email = "info@linuxfabrik.ch" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: The Unlicense (Unlicense)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Monitoring",
+    "Topic :: System :: Networking :: Monitoring",
+]
+description = "Model Context Protocol (MCP) server for Icinga 2 Core, Icinga Web, Icinga Director and the Linuxfabrik monitoring-plugins catalog."
+dependencies = [
+    # populated once the first working modules land
+]
+dynamic = [
+    "version",
+]
+keywords = [
+    "icinga",
+    "icinga2",
+    "icinga-director",
+    "llm",
+    "mcp",
+    "model-context-protocol",
+    "monitoring",
+    "nagios",
+]
+license-files = ["LICENSE", "COPYRIGHT"]
+name = "mcp-server-icinga"
+readme = "README.md"
+requires-python = ">=3.14"
+
+[project.optional-dependencies]
+influxdb = [
+    # placeholder, e.g. influxdb-client~=1.x once the TSDB layer lands
+]
+
+[dependency-groups]
+dev = [
+    "pytest~=9.0.2",
+]
+
+[project.scripts]
+mcp-server-icinga = "mcp_server_icinga.server:main"
+
+[project.urls]
+Download = "https://github.com/linuxfabrik/mcp-server-icinga/releases/"
+Homepage = "https://github.com/linuxfabrik/mcp-server-icinga/"
+Source = "https://github.com/linuxfabrik/mcp-server-icinga/"
+Tracker = "https://github.com/linuxfabrik/mcp-server-icinga/issues/"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.dynamic]
+version = { attr = "mcp_server_icinga.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+
+# === linters ===
+[tool.ruff]
+target-version = "py313" # py314 not yet recognised by ruff as of 2026-04-21
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes (logic errors)
+    "I",    # isort (import sorting)
+    "B",    # flake8-bugbear (potential bugs)
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade (modernize syntax)
+    "SIM",  # flake8-simplify
+    "TID",  # flake8-tidy-imports
+    "PTH",  # flake8-use-pathlib
+    "RUF",  # Ruff-specific rules
+]
+ignore = [
+    "E501",  # line too long
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["mcp_server_icinga"]
+
+[tool.ruff.format]
+quote-style = "single"
