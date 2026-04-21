@@ -56,7 +56,9 @@ def parse_plugin(plugin_dir: Path, repo_root: Path) -> PluginCatalogEntry:
         description=description,
         runs_on=fact_sheet.get('Runs on') or fact_sheet.get('Run on'),
         check_interval_recommendation=fact_sheet.get('Check Interval Recommendation'),
-        can_be_called_without_parameters=fact_sheet.get('Can be called without parameters'),
+        can_be_called_without_parameters=fact_sheet.get(
+            'Can be called without parameters'
+        ),
         compiled_for_windows=fact_sheet.get('Compiled for Windows'),
         uses_state_file=fact_sheet.get('Uses State File'),
         args=args,
@@ -309,7 +311,9 @@ def _parse_perfdata(readme: str) -> list[PluginPerfdata]:
 # ---------------------------------------------------------------------------
 
 
-def _parse_director(director_dir: Path, plugin_name: str) -> tuple[list[str], str | None]:
+def _parse_director(
+    director_dir: Path, plugin_name: str
+) -> tuple[list[str], str | None]:
     """Extract command names and varname prefix from all *.json baskets in
     `icingaweb2-module-director/`."""
     if not director_dir.is_dir():

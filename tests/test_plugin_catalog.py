@@ -23,7 +23,6 @@ from mcp_server_icinga.plugin_catalog.parser import (
     _parse_states,
 )
 
-
 _REPO_CANDIDATES = [
     Path('/home/markusfrei/git/linuxfabrik/github/monitoring-plugins'),
     Path(__file__).resolve().parents[2] / 'monitoring-plugins',

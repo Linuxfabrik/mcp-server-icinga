@@ -62,11 +62,29 @@ Write-through actions against Icinga, only available when the MCP server is conf
 
 ### Available now
 
-Only smoke-test prompts work at this stage of the project:
+These prompts work against the current build.
+
+**Server status:**
 
 > Run the `health_check` tool from the `icinga` MCP server.
 
 > Which Icinga backends does the icinga MCP server know about?
+
+**Plugin catalog** (requires `monitoring_plugins.catalog_path` configured, see [Configuration](03 - Configuration.md)):
+
+> Use `catalog_info` to tell me where the plugin knowledge comes from.
+
+> List all Linuxfabrik monitoring plugins whose names contain `-version`.
+
+> List all plugins that run on Windows.
+
+> Explain the `gitlab-version` plugin. What does it check, what arguments does it take, what states can it return?
+
+> What plugin is behind the Icinga check command `cmd-check-disk-usage`?
+
+> I have a service in Icinga that uses `cmd-check-mailq`. What perfdata does it emit and what states can it go into?
+
+> Which plugins use the `--always-ok` flag? Sample five and show their descriptions.
 
 The shape of the root-cause prompts above is what the project is ultimately designed for: natural-language investigation against a real Icinga fleet, with the server bridging Claude's reasoning to the existing Icinga REST APIs, the Linuxfabrik plugin catalog and historical perfdata in a time series database. Triage and operations are the building blocks that get us there.
 
