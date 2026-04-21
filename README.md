@@ -1,7 +1,5 @@
 <h1 align="center">
-  <a href="https://linuxfabrik.ch" target="_blank">
-    Linuxfabrik MCP Server for Icinga
-  </a>
+  Linuxfabrik MCP Server for Icinga
 </h1>
 <p align="center">
   Model Context Protocol (MCP) server for Icinga. Lets AI clients such as Claude triage, investigate and operate Icinga installations through the Icinga 2 Core, Icinga Web and Icinga Director REST APIs, with deep awareness of the Linuxfabrik monitoring-plugins catalog and historical perfdata from a time series database.

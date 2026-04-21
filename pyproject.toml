@@ -17,7 +17,8 @@ classifiers = [
 ]
 description = "Model Context Protocol (MCP) server for Icinga 2 Core, Icinga Web, Icinga Director and the Linuxfabrik monitoring-plugins catalog."
 dependencies = [
-    # populated once the first working modules land
+    "pydantic~=2.9",
+    "pyyaml~=6.0",
 ]
 dynamic = [
     "version",
@@ -45,6 +46,7 @@ influxdb = [
 [dependency-groups]
 dev = [
     "pytest~=9.0.2",
+    "types-pyyaml~=6.0",
 ]
 
 [project.scripts]
