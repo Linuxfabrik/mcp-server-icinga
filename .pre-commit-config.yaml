@@ -20,6 +20,10 @@ repos:
       - id: 'check-added-large-files'
       - id: 'check-merge-conflict'
       - id: 'check-yaml'
+        # --unsafe keeps syntax checking but skips tag resolution, so custom
+        # YAML tags like !env (used in examples/config.example.yaml) do not
+        # trip the hook.
+        args: ['--unsafe']
       - id: 'end-of-file-fixer'
       - id: 'trailing-whitespace'
         args: ['--markdown-linebreak-ext=md']

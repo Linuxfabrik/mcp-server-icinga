@@ -9,14 +9,13 @@ from pathlib import Path
 import pytest
 
 from mcp_server_icinga.config import (
+    _SYSTEM_PATH,
     Config,
     ConfigError,
     InfluxDBConfig,
-    _SYSTEM_PATH,
     find_config_path,
     load_config,
 )
-
 
 # ---------------------------------------------------------------------------
 # !env tag
@@ -126,9 +125,7 @@ def test_empty_config_is_valid(tmp_path: Path) -> None:
     assert config.tsdb is None
 
 
-def test_full_config_loads(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_full_config_loads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     for name in (
         'CORE_PW',
         'CORE_WRITE_PW',
@@ -169,7 +166,10 @@ def test_full_config_loads(
 
     assert config.icinga2_core is not None
     assert config.icinga2_core.write_password is not None
-    assert config.icinga2_core.write_password.get_secret_value() == 'value-of-CORE_WRITE_PW'
+    assert (
+        config.icinga2_core.write_password.get_secret_value()
+        == 'value-of-CORE_WRITE_PW'
+    )
     assert config.icinga2_core.verify_tls is False
     assert config.icinga2_core.timeout == 12
     assert isinstance(config.tsdb, InfluxDBConfig)
@@ -189,9 +189,7 @@ def test_unknown_top_level_key_rejected(tmp_path: Path) -> None:
 def test_missing_required_field_clear_error(tmp_path: Path) -> None:
     cfg = tmp_path / 'config.yaml'
     cfg.write_text(
-        'icinga2_core:\n'
-        "  url: 'https://icinga.example.com:5665'\n"
-        "  username: 'mcp'\n"
+        "icinga2_core:\n  url: 'https://icinga.example.com:5665'\n  username: 'mcp'\n"
         # password missing on purpose
     )
     with pytest.raises(ConfigError, match='password'):
@@ -248,4 +246,4 @@ def test_bundled_example_validates(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_system_path_constant() -> None:
-    assert _SYSTEM_PATH == Path('/etc/mcp-server-icinga/config.yaml')
+    assert Path('/etc/mcp-server-icinga/config.yaml') == _SYSTEM_PATH

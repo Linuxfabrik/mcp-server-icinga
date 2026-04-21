@@ -80,6 +80,15 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# Symlinks created by the docs.yml workflow before mkdocs build.
+# These live under docs/ at runtime so mkdocs-material can render them as
+# plain pages, but they are re-created on every CI run and should not be
+# tracked in git.
+/docs/CHANGELOG.md
+/docs/CODE_OF_CONDUCT.md
+/docs/contributing.md
+/docs/security.md
+
 # Linuxfabrik / Claude Code per-project notes (kept out of the repo by convention)
 CLAUDE.md
 .claude/

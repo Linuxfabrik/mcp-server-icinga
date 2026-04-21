@@ -55,3 +55,8 @@ not_in_nav: |
 
 nav:
   - 'Home': 'index.md'
+  - 'User Guide':
+      - 'Introduction': 'user-guide/01 - Introduction.md'
+      - 'Installation': 'user-guide/02 - Installation.md'
+      - 'Configuration': 'user-guide/03 - Configuration.md'
+      - 'Quickstart with Claude': 'user-guide/04 - Quickstart with Claude.md'

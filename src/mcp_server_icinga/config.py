@@ -177,8 +177,7 @@ def find_config_path() -> Path:
         return _SYSTEM_PATH
 
     raise ConfigError(
-        f'no config file found. Set {_ENV_VAR}, or create '
-        f'{user_path} or {_SYSTEM_PATH}'
+        f'no config file found. Set {_ENV_VAR}, or create {user_path} or {_SYSTEM_PATH}'
     )
 
 
@@ -191,7 +190,9 @@ def load_config(path: Path | str | None = None) -> Config:
 
     try:
         with config_path.open(encoding='utf-8') as fh:
-            raw = yaml.load(fh, Loader=_EnvLoader)  # noqa: S506 - custom SafeLoader subclass
+            # _EnvLoader is a SafeLoader subclass, so this is equivalent to
+            # yaml.safe_load() plus the !env tag resolver registered above.
+            raw = yaml.load(fh, Loader=_EnvLoader)  # nosec B506
     except yaml.YAMLError as exc:
         raise ConfigError(f'YAML error in {config_path}: {exc}') from exc
 
