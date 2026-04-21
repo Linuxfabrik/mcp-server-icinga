@@ -16,6 +16,15 @@ from mcp_server_icinga.config import (
 )
 from mcp_server_icinga.server import _health_check_payload, build_server
 
+# Fake values used only as test fixtures: the path is never opened (only
+# stringified for display in the health_check payload), and the passwords
+# are passed to Pydantic SecretStr fields that exist solely to exercise the
+# config schema. Annotated # nosec to keep bandit quiet about hardcoded
+# /tmp paths and password-shaped strings in tests.
+_FAKE_CONFIG_PATH = Path('/tmp/mcp-test-config.yaml')  # nosec B108
+_FAKE_READ_PASSWORD = 'fixture-read-password'  # nosec B105
+_FAKE_WRITE_PASSWORD = 'fixture-write-password'  # nosec B105
+
 
 # ---------------------------------------------------------------------------
 # _health_check_payload
@@ -23,10 +32,10 @@ from mcp_server_icinga.server import _health_check_payload, build_server
 
 
 def test_health_check_payload_no_backends() -> None:
-    payload = _health_check_payload(Config(), Path('/tmp/missing.yaml'))
+    payload = _health_check_payload(Config(), _FAKE_CONFIG_PATH)
     assert payload['name'] == 'mcp-server-icinga'
     assert payload['version'] == __version__
-    assert payload['config_path'] == '/tmp/missing.yaml'
+    assert payload['config_path'] == str(_FAKE_CONFIG_PATH)
     assert payload['backends'] == {
         'icinga2_core': False,
         'icinga_web': False,
@@ -43,11 +52,11 @@ def test_health_check_payload_core_read_only() -> None:
             {
                 'url': 'https://icinga.example.com:5665',
                 'username': 'r',
-                'password': 'r-pw',
+                'password': _FAKE_READ_PASSWORD,
             }
         ),
     )
-    payload = _health_check_payload(config, Path('/tmp/x.yaml'))
+    payload = _health_check_payload(config, _FAKE_CONFIG_PATH)
     assert payload['backends']['icinga2_core'] is True
     assert payload['icinga2_core_write_enabled'] is False
 
@@ -58,13 +67,13 @@ def test_health_check_payload_core_with_write_credentials() -> None:
             {
                 'url': 'https://icinga.example.com:5665',
                 'username': 'r',
-                'password': 'r-pw',
+                'password': _FAKE_READ_PASSWORD,
                 'write_username': 'w',
-                'write_password': 'w-pw',
+                'write_password': _FAKE_WRITE_PASSWORD,
             }
         ),
     )
-    payload = _health_check_payload(config, Path('/tmp/x.yaml'))
+    payload = _health_check_payload(config, _FAKE_CONFIG_PATH)
     assert payload['icinga2_core_write_enabled'] is True
 
 
@@ -74,7 +83,7 @@ def test_health_check_payload_catalog_live() -> None:
             catalog_path=Path('/opt/lf/monitoring-plugins/check-plugins'),
         ),
     )
-    payload = _health_check_payload(config, Path('/tmp/x.yaml'))
+    payload = _health_check_payload(config, _FAKE_CONFIG_PATH)
     assert payload['monitoring_plugins_catalog'] == 'live'
 
 
@@ -84,12 +93,12 @@ def test_health_check_payload_catalog_live() -> None:
 
 
 def test_build_server_returns_fastmcp_instance() -> None:
-    server = build_server(Config(), Path('/tmp/x.yaml'))
+    server = build_server(Config(), _FAKE_CONFIG_PATH)
     assert isinstance(server, FastMCP)
 
 
 def test_build_server_registers_health_check_tool() -> None:
-    server = build_server(Config(), Path('/tmp/x.yaml'))
+    server = build_server(Config(), _FAKE_CONFIG_PATH)
     # FastMCP exposes a private tool manager. If a future SDK release moves
     # this attribute, adjust the assertion to whatever the new public API is.
     tools = server._tool_manager._tools
