@@ -1,0 +1,40 @@
+repos:
+  - repo: 'https://github.com/astral-sh/ruff-pre-commit'
+    rev: 'v0.15.11'
+    hooks:
+      - id: 'ruff-check'
+        args: ['--fix']
+      - id: 'ruff-format'
+
+  - repo: 'https://github.com/lucas-C/pre-commit-hooks'
+    rev: 'v1.5.6'
+    hooks:
+      - id: 'insert-license'
+        files: '\.py$'
+        args:
+          - '--license-filepath=.license-header.txt'
+
+  - repo: 'https://github.com/pre-commit/pre-commit-hooks'
+    rev: 'v6.0.0'
+    hooks:
+      - id: 'check-added-large-files'
+      - id: 'check-merge-conflict'
+      - id: 'check-yaml'
+      - id: 'end-of-file-fixer'
+      - id: 'trailing-whitespace'
+        args: ['--markdown-linebreak-ext=md']
+
+  - repo: 'https://github.com/PyCQA/bandit'
+    rev: '1.9.4'
+    hooks:
+      - id: 'bandit'
+        args: ['-c', 'pyproject.toml', '--severity-level=low', '--confidence-level=low']
+        additional_dependencies: ['bandit[toml]']
+        types_or: ['python']
+
+  - repo: 'https://github.com/jendrikseipp/vulture'
+    rev: 'v2.16'
+    hooks:
+      - id: 'vulture'
+        args: ['--min-confidence=80']
+        types_or: ['python']

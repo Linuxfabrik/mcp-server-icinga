@@ -25,6 +25,8 @@
 
 `mcp-server-icinga` is a Model Context Protocol (MCP) server that lets AI clients such as Claude work with Icinga installations through natural language. It targets Linux System Engineers who run Icinga in production and want a chat-driven interface for daily triage, incident investigation and routine operations on top of the existing Icinga REST APIs.
 
+This project was developed with the assistance of Claude Code by Anthropic.
+
 
 ## Scope
 

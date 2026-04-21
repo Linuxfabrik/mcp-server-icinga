@@ -97,3 +97,18 @@ known-first-party = ["mcp_server_icinga"]
 
 [tool.ruff.format]
 quote-style = "single"
+
+[tool.bandit]
+# B110 (try/except/pass) and B112 (try/except/continue): intentional patterns
+# for graceful degradation in a long-running server.
+# B311 (pseudo-random): not used for cryptographic purposes.
+skips = ["B110", "B112", "B311"]
+
+[tool.bandit.assert_used]
+# pytest-style asserts are idiomatic in tests/, but bandit still scans the
+# directory for other real issues.
+skips = ["*/tests/*.py", "tests/*.py"]
+
+[tool.vulture]
+min_confidence = 80
+paths = ["src/mcp_server_icinga"]
