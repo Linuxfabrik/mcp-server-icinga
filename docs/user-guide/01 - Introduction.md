@@ -120,6 +120,8 @@ Two consequences fall out of this design and are worth knowing while you write c
 - **Tool descriptions are the single source of intent matching.** A tool with a vague docstring will be invoked at the wrong moments, or not at all. We document tools assuming the LLM is the only reader.
 - **The server, not Claude, controls what is possible.** Tools are only registered for backends that exist in the configuration. A configuration without `icinga2_core.write_password` simply does not expose write tools, so Claude cannot accidentally acknowledge or schedule a downtime even if you ask it to. This is the principle of least privilege, applied to the MCP surface.
 
+For the full mechanism with the real JSON-RPC payloads, see [How Tool Discovery Works](05 - How Tool Discovery Works.md).
+
 
 ## Where to go next
 

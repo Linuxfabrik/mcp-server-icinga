@@ -329,7 +329,7 @@ def _parse_director(
             continue
         if not isinstance(data, dict):
             continue
-        for cmd_name in (data.get('Command') or {}).keys():
+        for cmd_name in data.get('Command') or {}:
             if cmd_name not in commands:
                 commands.append(cmd_name)
         if prefix is None:
