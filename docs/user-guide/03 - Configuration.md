@@ -1,6 +1,6 @@
 # Configuration
 
-`mcp-server-icinga` is configured through a single YAML file. Secrets do not live in the YAML; they are referenced via the `!env VAR_NAME` tag and injected as environment variables by the MCP client when it spawns the server.
+`mcp-server-icinga` is configured through a single YAML file. The file describes one or more Icinga deployments ("instances") plus the global Linuxfabrik monitoring-plugins catalog. Secrets do not live in the YAML; they are resolved at load time from environment variables (`!env`) or from files on disk (`!file`).
 
 
 ## Lookup order
@@ -14,83 +14,96 @@ The server checks for a configuration file in this order and uses the first matc
 For local testing the user-specific path is the most convenient. For systemd-managed deployments the system path is the natural choice. Use `ICINGA_MCP_CONFIG` to override both, for example to point at a tenant-specific file.
 
 
-## Minimal configuration
+## The shape: instances + globals
 
-An empty file is valid. The server will start, but no backend is configured and only the `health_check` tool will be registered. Useful as a "is the wiring correct" smoke test:
+Two top-level sections:
+
+- `instances`: a map from instance name (an arbitrary identifier like `prod-zh`, `staging` or `customer-acme`) to a per-deployment configuration with up to four backends (`icinga2_core`, `icinga_web`, `icinga_director`, `tsdb`).
+- `monitoring_plugins`: global, applies across every instance.
+
+Both sections are optional. An empty file (or a file with `instances: {}`) is valid: the server starts and only registers the global tools (`health_check`, plus the catalog tools when `monitoring_plugins.catalog_path` is set).
+
+
+## Minimal configurations
+
+**Smoke test.** No instance, no catalog, only `health_check` works:
 
 ```bash
 mkdir --parents ~/.config/mcp-server-icinga
 touch ~/.config/mcp-server-icinga/config.yaml
 ```
 
-
-## Full example
-
-A full configuration covering all backends. The annotated example also ships at `examples/config.example.yaml` in the source tree.
+**Single Icinga 2 Core, read-only:**
 
 ```yaml
-icinga2_core:
-  url: 'https://icinga2.example.com:5665'
-  username: 'mcp-readonly'
-  password: !env ICINGA2_CORE_PASSWORD
-  verify_tls: true
-  # ca_bundle: '/etc/pki/tls/certs/ca.pem'
-  timeout: 8
+instances:
+  prod:
+    icinga2_core:
+      url: 'https://icinga2.example.com:5665'
+      username: 'mcp-readonly'
+      password: !env ICINGA2_PROD_PASSWORD
+```
 
-  # Optional second credential pair for write operations (acknowledge,
-  # schedule_downtime, reschedule_check, ...). Leave commented out to keep
-  # the server in read-only mode for this backend.
-  # write_username: 'mcp-write'
-  # write_password: !env ICINGA2_CORE_WRITE_PASSWORD
+**Multi-tenant, mixed secret sources:**
 
-icinga_web:
-  url: 'https://icingaweb.example.com'
-  username: 'mcp'
-  password: !env ICINGA_WEB_PASSWORD
+```yaml
+instances:
+  prod-zh:
+    icinga2_core:
+      url: 'https://icinga2-prod-zh.example.com:5665'
+      username: 'mcp-readonly'
+      password: !file /run/credentials/mcp-server-icinga/icinga2-prod-zh-password
 
-icinga_director:
-  url: 'https://icingaweb.example.com/director'
-  username: 'mcp-director'
-  password: !env ICINGA_DIRECTOR_PASSWORD
+  prod-fr:
+    icinga2_core:
+      url: 'https://icinga2-prod-fr.example.com:5665'
+      username: 'mcp-readonly'
+      password: !env ICINGA2_PROD_FR_PASSWORD
 
-tsdb:
-  type: 'influxdb'
-  url: 'http://influxdb.example.com:8086'
-  org: 'linuxfabrik'
-  bucket: 'icinga'
-  token: !env INFLUXDB_TOKEN
+  staging:
+    icinga2_core:
+      url: 'https://icinga2-stg.example.com:5665'
+      username: 'mcp-readonly'
+      password: !env ICINGA2_STG_PASSWORD
+      verify_tls: false
 
 monitoring_plugins:
   catalog_path: '/opt/linuxfabrik/monitoring-plugins/check-plugins'
 ```
 
+The annotated full example with all backends per instance lives at `examples/config.example.yaml` in the source tree.
+
 
 ## Field reference
 
-Every section is independently optional. Tools whose backend is missing do not get registered. The schema is enforced at startup; unknown keys are rejected with a clear error message.
+### `instances.<name>`
 
-### `icinga2_core`
+The key under `instances` is the instance name. Tools that target a specific instance accept the name as a parameter. Pick a stable identifier you can remember in the chat: a site code, a customer name, an environment label.
+
+Each instance contains zero to four of the following backend sections. They are all independently optional; a tool whose backend is missing on the targeted instance refuses with a clear error.
+
+#### `instances.<name>.icinga2_core`
 
 | Field             | Type     | Required | Default | Description |
 |-------------------|----------|----------|---------|-------------|
 | `url`             | URL      | yes      | -       | Base URL of the Icinga 2 Core REST API, typically port 5665. |
 | `username`        | string   | yes      | -       | Read-capable API user. |
-| `password`        | secret   | yes      | -       | Read-capable user's password. Use `!env` to reference an environment variable. |
+| `password`        | secret   | yes      | -       | Read-capable user's password. Use `!env` or `!file`. |
 | `verify_tls`      | bool     | no       | `true`  | Verify the server certificate. Set to `false` for self-signed certs in test environments. |
 | `ca_bundle`       | path     | no       | -       | Custom CA bundle file used for certificate verification. |
 | `timeout`         | int      | no       | `8`     | Network timeout in seconds. |
-| `write_username`  | string   | no       | -       | Optional second user with write permissions. When unset, write tools are not registered. |
-| `write_password`  | secret   | no       | -       | Required if `write_username` is set. |
+| `write_username`  | string   | no       | -       | Optional second user with write permissions. When unset, write tools are not registered for this instance. |
+| `write_password`  | secret   | no       | -       | Required when `write_username` is set. |
 
-### `icinga_web`
+#### `instances.<name>.icinga_web`
 
 Same fields as `icinga2_core`, minus the write-credential pair. Points at an Icinga Web 2 installation that has the Icinga DB Web module enabled.
 
-### `icinga_director`
+#### `instances.<name>.icinga_director`
 
 Same fields as `icinga_web`. Often the same Icinga Web instance with the Director module enabled.
 
-### `tsdb`
+#### `instances.<name>.tsdb`
 
 Modular. Currently only `type: 'influxdb'` is implemented.
 
@@ -107,6 +120,8 @@ Modular. Currently only `type: 'influxdb'` is implemented.
 
 ### `monitoring_plugins`
 
+Global. Same plugin catalog applies across every instance.
+
 | Field          | Type | Required | Default | Description |
 |----------------|------|----------|---------|-------------|
 | `catalog_path` | path | no       | -       | Local checkout of the `monitoring-plugins` repository's `check-plugins/` directory. When unset, the server falls back to the JSON snapshot bundled with the package. |
@@ -114,21 +129,54 @@ Modular. Currently only `type: 'influxdb'` is implemented.
 
 ## Secrets
 
-Never put plain-text passwords or tokens into the YAML file. Use the `!env` tag to refer to an environment variable; the MCP client (Claude Desktop, Claude Code, MCPO, ...) is expected to inject these into the server process when it starts:
+Never put plain-text passwords or tokens into the YAML file. Two custom YAML tags are available:
+
+### `!env VAR_NAME`
+
+Reads the value from an environment variable. The MCP client (Claude Desktop, Claude Code, MCPO, ...) is expected to inject these into the spawned server process:
 
 ```yaml
-password: !env ICINGA2_CORE_PASSWORD
+password: !env ICINGA2_PROD_ZH_PASSWORD
 ```
 
 If the environment variable is missing at startup, the server fails fast with a clear error mentioning the variable name. This makes credential issues obvious in the MCP client log.
 
-For credential management itself, use whatever mechanism your operating environment already provides:
+### `!file /path/to/secret`
 
-- A systemd unit with `EnvironmentFile=/etc/mcp-server-icinga/secrets.env`.
-- An MCP client wrapper that pulls secrets from a vault and injects them into the spawned process.
-- A direct entry in the MCP client's `env` map - convenient for local dev, less so for production.
+Reads the value from a file on disk. The trailing newline is stripped (so `echo "secret" > /run/credentials/...` works). Useful when:
+
+- The secret comes from systemd's `LoadCredential=` mechanism (`/run/credentials/<unit>/<name>`).
+- The secret comes from Docker / Podman secrets (`/run/secrets/<name>`).
+- The secret lives in a plain file with restricted permissions (mode `0600`, owned by the service user).
+
+```yaml
+password: !file /run/credentials/mcp-server-icinga/icinga2-prod-zh-password
+```
+
+If the path does not exist, is a directory, or cannot be read, the server fails fast with a clear error.
+
+### Picking between `!env` and `!file`
+
+Both are valid; mix them per backend if you want. Rules of thumb:
+
+- **`!file`** scales better when you have many secrets across many instances. The MCP client config (`claude_desktop_config.json`) stays small, the secrets are managed by your existing credential store / systemd unit / container runtime, and the server process only sees the env vars it needs (mostly just `ICINGA_MCP_CONFIG`).
+- **`!env`** is convenient for local development and for one-off secrets where wiring a file is overkill.
+
+A common production pattern: an `EnvironmentFile=/etc/mcp-server-icinga/secrets.env` for a handful of well-known secrets, plus `!file /run/credentials/...` for everything that is per-instance and managed by systemd `LoadCredential=` or a vault-style mechanism.
+
+
+## Multi-instance considerations
+
+When you configure more than one instance, all instance-aware tools (the catalog tools today are global, the live Icinga tools that follow are not) take an `instance` parameter. With one instance, the parameter is optional and the single instance is auto-selected. With multiple, the LLM is instructed to ask which instance you mean, or you can name it directly in your prompt:
+
+> What is currently red on the `prod-zh` instance?
+
+> Compare the load on `app01` between `prod-zh` and `prod-fr`.
+
+The instance name is part of the configuration's contract: rename it and every prompt that referenced it has to change.
 
 
 ## Where to go next
 
 - [Quickstart with Claude](04 - Quickstart with Claude.md): wire the server into Claude Desktop or Claude Code and run the first tool.
+- [How Tool Discovery Works](05 - How Tool Discovery Works.md): under-the-hood walk-through of what happens between writing a Python function and Claude calling it.

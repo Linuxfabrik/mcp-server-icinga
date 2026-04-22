@@ -12,6 +12,7 @@ from mcp_server_icinga import __version__
 from mcp_server_icinga.config import (
     Config,
     Icinga2CoreConfig,
+    InstanceConfig,
     MonitoringPluginsConfig,
 )
 from mcp_server_icinga.server import _health_check_payload, build_server
@@ -22,8 +23,20 @@ from mcp_server_icinga.server import _health_check_payload, build_server
 # config schema. Annotated # nosec to keep bandit quiet about hardcoded
 # /tmp paths and password-shaped strings in tests.
 _FAKE_CONFIG_PATH = Path('/tmp/mcp-test-config.yaml')  # nosec B108
-_FAKE_READ_PASSWORD = 'fixture-read-password'  # nosec B105
-_FAKE_WRITE_PASSWORD = 'fixture-write-password'  # nosec B105
+_FAKE_READ_PASSWORD = 'linuxfabrik'  # nosec B105
+_FAKE_WRITE_PASSWORD = 'linuxfabrik'  # nosec B105
+
+
+def _instance_with_core(write: bool = False) -> InstanceConfig:
+    payload: dict = {
+        'url': 'https://icinga.example.com:5665',
+        'username': 'r',
+        'password': _FAKE_READ_PASSWORD,
+    }
+    if write:
+        payload['write_username'] = 'w'
+        payload['write_password'] = _FAKE_WRITE_PASSWORD
+    return InstanceConfig(icinga2_core=Icinga2CoreConfig.model_validate(payload))
 
 
 # ---------------------------------------------------------------------------
@@ -31,52 +44,49 @@ _FAKE_WRITE_PASSWORD = 'fixture-write-password'  # nosec B105
 # ---------------------------------------------------------------------------
 
 
-def test_health_check_payload_no_backends() -> None:
+def test_health_check_payload_no_instances() -> None:
     payload = _health_check_payload(Config(), _FAKE_CONFIG_PATH)
     assert payload['name'] == 'mcp-server-icinga'
     assert payload['version'] == __version__
     assert payload['config_path'] == str(_FAKE_CONFIG_PATH)
-    assert payload['backends'] == {
-        'icinga2_core': False,
-        'icinga_web': False,
-        'icinga_director': False,
-        'tsdb': False,
-    }
-    assert payload['icinga2_core_write_enabled'] is False
+    assert payload['instances'] == {}
     assert payload['monitoring_plugins_catalog']['source'].startswith(
         'bundled-snapshot'
     )
 
 
-def test_health_check_payload_core_read_only() -> None:
-    config = Config(
-        icinga2_core=Icinga2CoreConfig.model_validate(
-            {
-                'url': 'https://icinga.example.com:5665',
-                'username': 'r',
-                'password': _FAKE_READ_PASSWORD,
-            }
-        ),
-    )
+def test_health_check_payload_single_instance_read_only() -> None:
+    config = Config(instances={'prod': _instance_with_core(write=False)})
     payload = _health_check_payload(config, _FAKE_CONFIG_PATH)
-    assert payload['backends']['icinga2_core'] is True
-    assert payload['icinga2_core_write_enabled'] is False
+    assert payload['instances'] == {
+        'prod': {
+            'icinga2_core': True,
+            'icinga_web': False,
+            'icinga_director': False,
+            'tsdb': False,
+            'icinga2_core_write_enabled': False,
+        }
+    }
 
 
-def test_health_check_payload_core_with_write_credentials() -> None:
+def test_health_check_payload_instance_with_write_credentials() -> None:
+    config = Config(instances={'prod': _instance_with_core(write=True)})
+    payload = _health_check_payload(config, _FAKE_CONFIG_PATH)
+    assert payload['instances']['prod']['icinga2_core_write_enabled'] is True
+
+
+def test_health_check_payload_multiple_instances() -> None:
     config = Config(
-        icinga2_core=Icinga2CoreConfig.model_validate(
-            {
-                'url': 'https://icinga.example.com:5665',
-                'username': 'r',
-                'password': _FAKE_READ_PASSWORD,
-                'write_username': 'w',
-                'write_password': _FAKE_WRITE_PASSWORD,
-            }
-        ),
+        instances={
+            'prod-zh': _instance_with_core(write=True),
+            'prod-fr': _instance_with_core(write=False),
+            'staging': _instance_with_core(write=False),
+        }
     )
     payload = _health_check_payload(config, _FAKE_CONFIG_PATH)
-    assert payload['icinga2_core_write_enabled'] is True
+    assert set(payload['instances'].keys()) == {'prod-zh', 'prod-fr', 'staging'}
+    assert payload['instances']['prod-zh']['icinga2_core_write_enabled'] is True
+    assert payload['instances']['staging']['icinga2_core_write_enabled'] is False
 
 
 def test_health_check_payload_catalog_configured_but_not_loaded() -> None:
@@ -96,13 +106,13 @@ def test_health_check_payload_catalog_loaded() -> None:
 
     catalog = Catalog(
         source='live',
-        built_at='2026-04-21T13:20:42+00:00',
+        built_at='2026-04-22T08:00:00+00:00',
         plugins={},
     )
     payload = _health_check_payload(Config(), _FAKE_CONFIG_PATH, catalog=catalog)
     assert payload['monitoring_plugins_catalog'] == {
         'source': 'live',
-        'built_at': '2026-04-21T13:20:42+00:00',
+        'built_at': '2026-04-22T08:00:00+00:00',
         'monitoring_plugins_ref': None,
         'plugin_count': 0,
     }
@@ -120,8 +130,6 @@ def test_build_server_returns_fastmcp_instance() -> None:
 
 def test_build_server_registers_health_check_tool_only_when_no_catalog() -> None:
     server = build_server(Config(), _FAKE_CONFIG_PATH)
-    # FastMCP exposes a private tool manager. If a future SDK release moves
-    # this attribute, adjust the assertion to whatever the new public API is.
     tools = server._tool_manager._tools
     assert 'health_check' in tools
     assert 'catalog_info' not in tools

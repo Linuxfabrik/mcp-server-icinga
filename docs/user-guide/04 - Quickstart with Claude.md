@@ -14,14 +14,16 @@ touch ~/.config/mcp-server-icinga/config.yaml
 
 The server accepts an empty file as a valid configuration: nothing is wired up, only `health_check` is exposed.
 
-For a more interesting smoke test, fill in just the `icinga2_core` section so that `health_check` reports `icinga2_core: true`:
+For a more interesting smoke test, register one Icinga instance so that `health_check` lists it under `instances`:
 
 ```yaml
-icinga2_core:
-  url: 'https://icinga2.example.com:5665'
-  username: 'mcp-readonly'
-  password: !env ICINGA2_CORE_PASSWORD
-  verify_tls: true
+instances:
+  prod:
+    icinga2_core:
+      url: 'https://icinga2.example.com:5665'
+      username: 'mcp-readonly'
+      password: !env ICINGA2_PROD_PASSWORD
+      verify_tls: true
 ```
 
 
@@ -45,7 +47,7 @@ Add an entry under `mcpServers`:
       "command": "mcp-server-icinga",
       "env": {
         "ICINGA_MCP_CONFIG": "/home/yourself/.config/mcp-server-icinga/config.yaml",
-        "ICINGA2_CORE_PASSWORD": "the-actual-password"
+        "ICINGA2_PROD_PASSWORD": "linuxfabrik"
       }
     }
   }
@@ -74,7 +76,7 @@ Or write the equivalent JSON into `.mcp.json` at the project root:
       "command": "mcp-server-icinga",
       "env": {
         "ICINGA_MCP_CONFIG": "/home/yourself/.config/mcp-server-icinga/config.yaml",
-        "ICINGA2_CORE_PASSWORD": "the-actual-password"
+        "ICINGA2_PROD_PASSWORD": "linuxfabrik"
       }
     }
   }
@@ -105,14 +107,18 @@ Expected response: Claude calls `health_check`, returns a JSON-shaped payload si
   "name": "mcp-server-icinga",
   "version": "0.0.0",
   "config_path": "/home/yourself/.config/mcp-server-icinga/config.yaml",
-  "backends": {
-    "icinga2_core": true,
-    "icinga_web": false,
-    "icinga_director": false,
-    "tsdb": false
+  "instances": {
+    "prod": {
+      "icinga2_core": true,
+      "icinga_web": false,
+      "icinga_director": false,
+      "tsdb": false,
+      "icinga2_core_write_enabled": false
+    }
   },
-  "icinga2_core_write_enabled": false,
-  "monitoring_plugins_catalog": "bundled-snapshot (not yet implemented)"
+  "monitoring_plugins_catalog": {
+    "source": "bundled-snapshot (not yet implemented)"
+  }
 }
 ```
 

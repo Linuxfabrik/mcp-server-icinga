@@ -37,7 +37,7 @@ def _health_check_payload(
     server.
     """
     if catalog is not None:
-        catalog_status = {
+        catalog_status: dict[str, Any] = {
             'source': catalog.source,
             'built_at': catalog.built_at,
             'monitoring_plugins_ref': catalog.monitoring_plugins_ref,
@@ -48,20 +48,24 @@ def _health_check_payload(
     else:
         catalog_status = {'source': 'bundled-snapshot (not yet implemented)'}
 
+    instances_status: dict[str, dict[str, Any]] = {}
+    for name, inst in config.instances.items():
+        instances_status[name] = {
+            'icinga2_core': inst.icinga2_core is not None,
+            'icinga_web': inst.icinga_web is not None,
+            'icinga_director': inst.icinga_director is not None,
+            'tsdb': inst.tsdb is not None,
+            'icinga2_core_write_enabled': (
+                inst.icinga2_core is not None
+                and inst.icinga2_core.write_password is not None
+            ),
+        }
+
     return {
         'name': 'mcp-server-icinga',
         'version': __version__,
         'config_path': str(config_path),
-        'backends': {
-            'icinga2_core': config.icinga2_core is not None,
-            'icinga_web': config.icinga_web is not None,
-            'icinga_director': config.icinga_director is not None,
-            'tsdb': config.tsdb is not None,
-        },
-        'icinga2_core_write_enabled': (
-            config.icinga2_core is not None
-            and config.icinga2_core.write_password is not None
-        ),
+        'instances': instances_status,
         'monitoring_plugins_catalog': catalog_status,
     }
 

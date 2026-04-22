@@ -7,87 +7,101 @@
 #      (default: ~/.config/mcp-server-icinga/config.yaml)
 #   3. /etc/mcp-server-icinga/config.yaml
 #
-# Secrets are NOT stored in this file. Use the !env tag to reference an
-# environment variable; the MCP client (Claude Desktop, Claude Code, MCPO,
-# ...) is expected to inject these into the server process when it starts:
+# Secrets are NOT stored in this file. Two custom YAML tags resolve them
+# at load time:
 #
-#   {
-#     "mcpServers": {
-#       "icinga": {
-#         "command": "mcp-server-icinga",
-#         "env": {
-#           "ICINGA_MCP_CONFIG": "/etc/mcp-server-icinga/config.yaml",
-#           "ICINGA2_CORE_PASSWORD": "...",
-#           "ICINGA_WEB_PASSWORD": "...",
-#           "INFLUXDB_TOKEN": "..."
-#         }
-#       }
-#     }
-#   }
+#   * `!env VAR_NAME` reads from an environment variable. The MCP client
+#     (Claude Desktop, Claude Code, MCPO, ...) is expected to inject these
+#     into the server process when it starts.
 #
-# Every section below is optional. Tools whose backend is absent simply
-# do not get registered, so an Icinga-2-Core-only deployment is valid.
-
-
-# ---------------------------------------------------------------------------
-# Icinga 2 Core REST API (typically port 5665)
-# ---------------------------------------------------------------------------
-icinga2_core:
-  url: 'https://icinga2.example.com:5665'
-  username: 'mcp-readonly'
-  password: !env ICINGA2_CORE_PASSWORD
-  verify_tls: true
-  # ca_bundle: '/etc/pki/tls/certs/ca.pem'
-  timeout: 8
-
-  # Optional second credential pair for write operations (acknowledge,
-  # schedule_downtime, reschedule_check, ...). Leave commented out to keep
-  # the server in read-only mode for this backend.
-  # write_username: 'mcp-write'
-  # write_password: !env ICINGA2_CORE_WRITE_PASSWORD
-
-
-# ---------------------------------------------------------------------------
-# Icinga Web 2 with the Icinga DB Web module
-# ---------------------------------------------------------------------------
-icinga_web:
-  url: 'https://icingaweb.example.com'
-  username: 'mcp'
-  password: !env ICINGA_WEB_PASSWORD
-  verify_tls: true
-  timeout: 8
-
-
-# ---------------------------------------------------------------------------
-# Icinga Director module of Icinga Web 2
-# ---------------------------------------------------------------------------
-icinga_director:
-  # Often the same Icinga Web instance with the Director module enabled.
-  url: 'https://icingaweb.example.com/director'
-  username: 'mcp-director'
-  password: !env ICINGA_DIRECTOR_PASSWORD
-  verify_tls: true
-  timeout: 8
-
-
-# ---------------------------------------------------------------------------
-# Time series database for historical perfdata (modular)
-# ---------------------------------------------------------------------------
-tsdb:
-  type: 'influxdb'
-  url: 'http://influxdb.example.com:8086'
-  org: 'linuxfabrik'
-  bucket: 'icinga'
-  token: !env INFLUXDB_TOKEN
-  verify_tls: true
-  timeout: 8
+#       password: !env ICINGA2_PROD_ZH_PASSWORD
+#
+#   * `!file /path/to/secret-file` reads from a file (trailing newline
+#     stripped). Works with systemd LoadCredential, Docker / Podman secrets,
+#     or any plain file with restricted permissions.
+#
+#       password: !file /run/credentials/mcp-server-icinga/icinga2-prod-zh-pw
+#
+# `instances` may be empty: a configuration without any instance still
+# loads cleanly and the server only registers global tools (health_check,
+# plus the catalog tools when monitoring_plugins.catalog_path is set).
+# Every backend section inside an instance is independently optional.
 
 
 # ---------------------------------------------------------------------------
 # Linuxfabrik monitoring-plugins catalog
+# Global, applies across all instances.
 # ---------------------------------------------------------------------------
 monitoring_plugins:
   # Local checkout of https://github.com/Linuxfabrik/monitoring-plugins
   # (the `check-plugins` directory). When omitted, the server falls back
   # to the JSON snapshot bundled with the package.
   catalog_path: '/opt/linuxfabrik/monitoring-plugins/check-plugins'
+
+
+# ---------------------------------------------------------------------------
+# Instances: one entry per Icinga deployment (tenant, site, environment).
+# The instance name is what tools refer to via their `instance` parameter.
+# ---------------------------------------------------------------------------
+instances:
+
+  prod-zh:
+    icinga2_core:
+      url: 'https://icinga2-prod-zh.example.com:5665'
+      username: 'mcp-readonly'
+      password: !file /run/credentials/mcp-server-icinga/icinga2-prod-zh-password
+      verify_tls: true
+      # ca_bundle: '/etc/pki/tls/certs/ca.pem'
+      timeout: 8
+      # Optional second credential pair for write operations (acknowledge,
+      # schedule_downtime, reschedule_check, ...). Leave commented out to
+      # keep the server in read-only mode for this backend.
+      # write_username: 'mcp-write'
+      # write_password: !file /run/credentials/mcp-server-icinga/icinga2-prod-zh-write-pw
+
+    icinga_web:
+      url: 'https://icingaweb-prod-zh.example.com'
+      username: 'mcp'
+      password: !env ICINGA_WEB_PROD_ZH_PASSWORD
+
+    icinga_director:
+      url: 'https://icingaweb-prod-zh.example.com/director'
+      username: 'mcp'
+      password: !env ICINGA_DIRECTOR_PROD_ZH_PASSWORD
+
+    tsdb:
+      type: 'influxdb'
+      url: 'http://influxdb-prod-zh.example.com:8086'
+      org: 'linuxfabrik'
+      bucket: 'icinga'
+      token: !env INFLUXDB_PROD_ZH_TOKEN
+
+  prod-fr:
+    icinga2_core:
+      url: 'https://icinga2-prod-fr.example.com:5665'
+      username: 'mcp-readonly'
+      password: !file /run/credentials/mcp-server-icinga/icinga2-prod-fr-password
+    icinga_web:
+      url: 'https://icingaweb-prod-fr.example.com'
+      username: 'mcp'
+      password: !env ICINGA_WEB_PROD_FR_PASSWORD
+    icinga_director:
+      url: 'https://icingaweb-prod-fr.example.com/director'
+      username: 'mcp'
+      password: !env ICINGA_DIRECTOR_PROD_FR_PASSWORD
+    tsdb:
+      type: 'influxdb'
+      url: 'http://influxdb-prod-fr.example.com:8086'
+      org: 'linuxfabrik'
+      bucket: 'icinga'
+      token: !env INFLUXDB_PROD_FR_TOKEN
+
+  staging:
+    # An instance with only icinga2_core is fine: tools that need
+    # icinga_web / icinga_director / tsdb on this instance refuse with a
+    # clear error pointing at the missing section.
+    icinga2_core:
+      url: 'https://icinga2-stg.example.com:5665'
+      username: 'mcp-readonly'
+      password: !env ICINGA2_STG_PASSWORD
+      verify_tls: false

@@ -2,11 +2,21 @@
 
 """Configuration loading and validation.
 
-The configuration is a YAML file that describes the topology of all backends
-the MCP server can talk to (Icinga 2 Core, Icinga Web, Icinga Director, the
-TSDB and the local monitoring-plugins catalog). Secrets are not stored in the
-YAML itself; they are referenced via the `!env VAR_NAME` tag and resolved
-from environment variables at load time.
+The configuration is a YAML file that describes one or more Icinga
+deployments ("instances") the MCP server can talk to, plus the global
+Linuxfabrik monitoring-plugins catalog. Each instance is a tenant- or
+site-shaped grouping of up to four backends: Icinga 2 Core REST API,
+Icinga Web 2, Icinga Director and a time series database.
+
+Secrets are not stored in the YAML itself. Two custom YAML tags resolve
+them at load time:
+
+- `!env VAR_NAME` reads the value from an environment variable. The MCP
+  client (Claude Desktop, Claude Code, MCPO, ...) is expected to inject
+  these into the server process when it spawns it.
+- `!file /path/to/secret-file` reads the value from a file. Trailing
+  newlines are stripped. Works with systemd `LoadCredential=`, Docker /
+  Podman secrets, or any plain file with restricted permissions.
 
 Lookup order for the config file (first match wins):
 
@@ -15,10 +25,11 @@ Lookup order for the config file (first match wins):
    ``~/.config/mcp-server-icinga/config.yaml``)
 3. ``/etc/mcp-server-icinga/config.yaml``
 
-Every backend section is optional. Tools whose backend is absent simply do
-not get registered with the MCP server, so a read-only deployment that only
-talks to Icinga 2 Core works without ever configuring Icinga Director or
-the TSDB.
+Every backend section inside an instance is independently optional. The
+instances dict itself can be empty: a configuration without any instance
+still loads cleanly and the server only registers the global tools
+(`health_check`, plus the catalog tools when `monitoring_plugins.catalog_path`
+is set).
 """
 
 from __future__ import annotations
@@ -36,12 +47,12 @@ class ConfigError(Exception):
 
 
 # ---------------------------------------------------------------------------
-# YAML loader with `!env VAR_NAME` resolution
+# YAML loader with !env and !file resolution
 # ---------------------------------------------------------------------------
 
 
-class _EnvLoader(yaml.SafeLoader):
-    """SafeLoader subclass that knows the `!env` scalar tag."""
+class _SecretResolvingLoader(yaml.SafeLoader):
+    """SafeLoader subclass that knows the `!env` and `!file` scalar tags."""
 
 
 def _env_constructor(loader: yaml.SafeLoader, node: yaml.ScalarNode) -> str:
@@ -56,11 +67,30 @@ def _env_constructor(loader: yaml.SafeLoader, node: yaml.ScalarNode) -> str:
     return value
 
 
-_EnvLoader.add_constructor('!env', _env_constructor)
+def _file_constructor(loader: yaml.SafeLoader, node: yaml.ScalarNode) -> str:
+    raw_path = loader.construct_scalar(node).strip()
+    if not raw_path:
+        raise ConfigError('!file tag requires a non-empty path')
+    path = Path(raw_path)
+    if not path.is_file():
+        raise ConfigError(
+            f'!file path does not exist or is not a regular file: {raw_path}'
+        )
+    try:
+        # Trailing newline is stripped: systemd LoadCredential, Docker secrets
+        # and `echo "secret" > file` all leave one behind, and a stray newline
+        # in a token or password makes for confusing failures down the line.
+        return path.read_text(encoding='utf-8').rstrip('\n')
+    except OSError as exc:
+        raise ConfigError(f'cannot read !file {raw_path}: {exc}') from exc
+
+
+_SecretResolvingLoader.add_constructor('!env', _env_constructor)
+_SecretResolvingLoader.add_constructor('!file', _file_constructor)
 
 
 # ---------------------------------------------------------------------------
-# Pydantic models
+# Pydantic models: per-backend
 # ---------------------------------------------------------------------------
 
 
@@ -82,7 +112,7 @@ class Icinga2CoreConfig(_BackendBase):
 
     Optional `write_username` / `write_password` enable mutating tools
     (acknowledge, downtime, reschedule). When unset the server only registers
-    read-only tools for this backend.
+    read-only tools for this backend on this instance.
     """
 
     write_username: str | None = None
@@ -117,8 +147,32 @@ class InfluxDBConfig(BaseModel):
 TSDBConfig = Annotated[InfluxDBConfig, Field(discriminator='type')]
 
 
+# ---------------------------------------------------------------------------
+# Pydantic models: per-instance and top level
+# ---------------------------------------------------------------------------
+
+
+class InstanceConfig(BaseModel):
+    """One Icinga deployment (tenant, site, environment).
+
+    All four backend sections are optional. An instance with only
+    `icinga2_core` is valid; tools whose backend is absent on the
+    targeted instance simply refuse with a clear error.
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    icinga2_core: Icinga2CoreConfig | None = None
+    icinga_web: IcingaWebConfig | None = None
+    icinga_director: IcingaDirectorConfig | None = None
+    tsdb: TSDBConfig | None = None
+
+
 class MonitoringPluginsConfig(BaseModel):
     """Linuxfabrik monitoring-plugins catalog source.
+
+    Global, not per-instance: the same plugin catalog applies across every
+    Icinga deployment the server talks to.
 
     `catalog_path` points at a local checkout of the
     https://github.com/Linuxfabrik/monitoring-plugins repo (the
@@ -136,10 +190,10 @@ class Config(BaseModel):
 
     model_config = ConfigDict(extra='forbid')
 
-    icinga2_core: Icinga2CoreConfig | None = None
-    icinga_web: IcingaWebConfig | None = None
-    icinga_director: IcingaDirectorConfig | None = None
-    tsdb: TSDBConfig | None = None
+    instances: dict[str, InstanceConfig] = Field(default_factory=dict)
+    """Map of instance name (e.g. `prod-zh`, `staging`) to backend config.
+    May be empty, in which case the server only exposes global tools."""
+
     monitoring_plugins: MonitoringPluginsConfig = Field(
         default_factory=MonitoringPluginsConfig,
     )
@@ -190,9 +244,10 @@ def load_config(path: Path | str | None = None) -> Config:
 
     try:
         with config_path.open(encoding='utf-8') as fh:
-            # _EnvLoader is a SafeLoader subclass, so this is equivalent to
-            # yaml.safe_load() plus the !env tag resolver registered above.
-            raw = yaml.load(fh, Loader=_EnvLoader)  # nosec B506
+            # _SecretResolvingLoader is a SafeLoader subclass, so this is
+            # equivalent to yaml.safe_load() plus the !env and !file
+            # resolvers registered above.
+            raw = yaml.load(fh, Loader=_SecretResolvingLoader)  # nosec B506
     except yaml.YAMLError as exc:
         raise ConfigError(f'YAML error in {config_path}: {exc}') from exc
 
