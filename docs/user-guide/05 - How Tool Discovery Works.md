@@ -3,15 +3,14 @@
 Concrete walk-through of what happens between "I write a Python function in `server.py`" and "Claude calls that function in response to my prompt". Uses the `health_check` tool as the running example because it has the smallest possible signature (no parameters) and we ship it on every deployment.
 
 
-## The big picture, in five steps
+## The big picture, in four steps
 
 1. **Source.** A Python function in `src/mcp_server_icinga/server.py` is decorated with `@mcp.tool()` from the `mcp` SDK's `FastMCP` API.
 2. **Registration.** When `build_server()` runs at startup, the decorator inspects the function's docstring and type hints and produces a JSON-Schema description of the tool. That description goes into a per-server tool registry.
 3. **Handshake.** When the MCP client (Claude Desktop, Claude Code, ...) spawns the server it asks `tools/list`. The server returns the registry as JSON. The client injects this list into the LLM's context for every following turn.
-4. **Reasoning.** The LLM sees the tool descriptions and, given a user message, decides whether and how to call any of the tools. This is plain function calling, the same mechanism the model uses for any other tool.
-5. **Execution.** The client sends `tools/call` with the chosen tool name and arguments. The server runs the underlying Python function and returns the result, which the client surfaces back to the LLM, which then composes a natural-language reply for the user.
+4. **Call.** Given a user message, the LLM picks a tool from the list, emits a structured `tools/call`, the server runs the underlying Python function, and the LLM turns the result into a natural-language reply.
 
-Sections below show steps 1, 2, 3 and 5 with the real bytes that flow.
+Each step gets a section below with the real bytes that flow.
 
 
 ## Step 1: the source
@@ -47,12 +46,12 @@ Three things matter:
 
 ## Step 2: what the decorator turns that into
 
-`@mcp.tool()` walks the function signature and docstring, derives a JSON-Schema description and registers everything in `FastMCP._tool_manager`. The registered entry for `health_check` looks like this when serialised:
+`@mcp.tool()` walks the function signature and docstring, derives a JSON-Schema description and registers everything in `FastMCP._tool_manager`. The registered entry for `health_check` looks like this when serialised, with the `description` value shortened here for readability (in the actual payload it is the full docstring from above, with line breaks escaped as `\n`):
 
 ```json
 {
   "name": "health_check",
-  "description": "Report server status and which backends are configured.\n\nReturns the server name and version, the path of the loaded\nconfiguration file, a per-backend availability map and the status\nof the monitoring-plugins catalog. This is a pure inspection of the\nloaded configuration; it does not perform any live network checks.\n\nUse this to confirm that the MCP server is running with the\nconfiguration you expect after a restart of the MCP client.\n",
+  "description": "Report server status and which backends are configured.\n\n... (full docstring from Step 1) ...\n",
   "inputSchema": {
     "type": "object",
     "title": "health_checkArguments",
@@ -138,10 +137,10 @@ The server replies with every registered tool in one message:
 }
 ```
 
-The tool list depends on what the configuration enabled. With an empty `config.yaml` only `health_check` is in there. With `monitoring_plugins.catalog_path` set, the four catalog tools join. As more backends gain client support (Phase 4 onwards), they appear here automatically when their section is configured.
+The tool list depends on what the configuration enabled. With an empty `config.yaml` only `health_check` is in there. With `monitoring_plugins.catalog_path` set, the four catalog tools join. As more backends gain client support (Phase 4 onwards), they appear here automatically when their section is configured. Tools whose backend section is missing from the configuration never enter the registry, so the LLM never sees them and cannot try to call them. That is the project's principle-of-least-privilege boundary; omitting `icinga2_core.write_password` is therefore a real, enforceable read-only mode, not just a hint.
 
 
-## Step 5: an end-to-end call
+## Step 4: an end-to-end call
 
 User types in Claude Code:
 
@@ -194,13 +193,10 @@ What happens, in order:
 
 ## Why this design matters when you write tools
 
-A few practical consequences for everyone working on `mcp-server-icinga`, both LLM-side and Python-side:
+Two practical consequences that are not obvious from the steps above:
 
-- **Docstrings are an API surface, not a comment.** They are the only signal the LLM has to decide when a tool is relevant. Vague or missing docstrings produce vague or missing tool calls. We document tools assuming the LLM is the only reader; humans will read the source if they need detail.
-- **Type hints are the schema.** `param: str` becomes `{"type": "string"}` in the input schema. `param: int | None = None` becomes `anyOf [integer, null]` with `default: null` and is not required. Skip the hint and FastMCP cannot describe the parameter at all, which makes the LLM either guess or refuse to call.
-- **Errors propagate.** Raising an exception in the function turns into `isError: true` on the tool result; the LLM sees the message and can tell the user about it. We use this to signal "unknown plugin" in `explain_plugin` rather than returning a sentinel value.
-- **The server controls the surface.** Tools that are not registered cannot be called, no matter what the user asks. That is why omitting `icinga2_core.write_password` in the configuration is a real, enforceable read-only mode: the write tools never enter the registry, so they never appear in the LLM's context, so the LLM cannot emit a call for them.
-- **Restart the MCP client to refresh.** Tool descriptions are cached for the life of the spawned server process. After editing a docstring or adding a tool, the next call to `tools/list` happens only when the client respawns the server, which usually means restarting Claude Desktop or running `claude mcp` reload commands.
+- **Errors propagate.** Raising an exception inside the function turns into `isError: true` on the tool result; the LLM sees the message and can tell the user about it. We use this to signal "unknown plugin" in `explain_plugin` rather than returning a sentinel value, because a clean error message is more useful to the LLM than an empty result it has to interpret.
+- **Restart the MCP client to refresh.** Tool descriptions are cached for the life of the spawned server process. After editing a docstring or adding a tool, the next `tools/list` only happens when the client respawns the server, which usually means restarting Claude Desktop or running the equivalent `claude mcp` reload command. There is no hot reload.
 
 
 ## Want to see it for real?
