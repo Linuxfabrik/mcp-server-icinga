@@ -3,6 +3,21 @@
 `mcp-server-icinga` is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that lets AI clients work with Icinga installations through natural language. It targets Linux System Engineers who run Icinga in production and want a chat-driven interface for daily triage, incident investigation and routine operations on top of the existing Icinga REST APIs.
 
 
+## What kind of "server" is this?
+
+The word "server" misleads when you come from the sysadmin side, where a server is usually a daemon that listens on a port. `mcp-server-icinga` is neither. It is a short-lived Python process that the MCP client spawns and talks to over `stdin`/`stdout`.
+
+Concretely:
+
+- **There is no systemd unit, no `mcp-server-icinga start`, no port listening on your network.** You will not find it with `ss --listening`, you do not open a firewall rule for it, you do not add it to a load balancer.
+- **The MCP client (Claude Desktop, Claude Code, MCPO, ...) spawns the process on demand.** It launches `mcp-server-icinga` as a subprocess when it starts, and kills it when it exits. Each client window typically gets its own process.
+- **Transport is JSON-RPC over `stdin`/`stdout`.** All communication between the client and the server happens through pipes; no socket is opened. The server itself reaches out to Icinga's REST APIs over HTTPS, but that traffic leaves the machine where you ran the client and your MCP-server credentials live, not the other way around.
+- **Installation lives next to the client, not next to Icinga.** Put the package on your laptop next to Claude Desktop, or on the host where Claude Code runs. The Icinga server keeps running where it always did; the MCP server only needs network access to its REST APIs.
+- **Restarting means restarting the MCP client.** The server is a child process of the client. Edits to the configuration or a freshly installed version of the package take effect after the next client restart.
+
+There is an alternative MCP transport mode, "streamable-http", that runs as a real HTTP daemon and serves multiple clients at once. We do not use it today: stdio matches the way Claude Desktop and Claude Code natively spawn servers, keeps deployment trivial (`pip install`, no service to manage), and avoids exposing yet another network surface. We may add a streamable-http option once a use case (shared team server, MCPO behind authentication, ...) appears.
+
+
 ## What it bridges
 
 Five sources of knowledge, each behind its own module so that you only configure what you actually run:
