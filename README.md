@@ -6,8 +6,10 @@
   <span>&#8226;</span>
   <b>made by <a href="https://linuxfabrik.ch/">Linuxfabrik</a></b>
 </p>
-<div align="center">
+<div align="center" markdown>
 
+![GitHub Stars](https://img.shields.io/github/stars/linuxfabrik/mcp-server-icinga)
+[![Star History Chart](https://api.star-history.com/svg?repos=Linuxfabrik/mcp-server-icinga&type=Date)](https://star-history.com/#Linuxfabrik/mcp-server-icinga&Date)
 ![License](https://img.shields.io/github/license/linuxfabrik/mcp-server-icinga)
 ![Python](https://img.shields.io/badge/Python-3.14+-3776ab)
 ![Status](https://img.shields.io/badge/Status-early%20development-orange)
@@ -22,6 +24,8 @@
 # MCP Server for Icinga
 
 `mcp-server-icinga` is a Model Context Protocol (MCP) server that lets AI clients such as Claude work with Icinga installations through natural language. It targets Linux System Engineers who run Icinga in production and want a chat-driven interface for daily triage, incident investigation and routine operations on top of the existing Icinga REST APIs.
+
+> If this MCP server helps you operating your Icinga installation through your AI assistant, please give it a star.
 
 This project was developed with the assistance of Claude Code by Anthropic.
 
