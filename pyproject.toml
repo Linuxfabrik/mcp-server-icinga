@@ -46,7 +46,7 @@ influxdb = [
 
 [dependency-groups]
 dev = [
-    "pytest~=9.0.2",
+    "pytest>=9.0.2,<9.2.0",
     "types-pyyaml~=6.0",
 ]
 
