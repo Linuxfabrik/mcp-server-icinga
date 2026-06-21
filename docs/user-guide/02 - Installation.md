@@ -47,12 +47,27 @@ pip install --editable '.'
 
 ## Verify the install
 
-The package exposes both a console script and a runnable module:
+`mcp-server-icinga` is not a conventional CLI: it speaks JSON-RPC over stdin/stdout and takes no command-line arguments. A few quick checks confirm the install:
 
 ```bash
-mcp-server-icinga --help        # short usage banner (no arguments accepted)
-python -m mcp_server_icinga     # equivalent
-python -c 'from mcp_server_icinga import __version__; print(__version__)'
+python -c 'from mcp_server_icinga import __version__; print(__version__)'   # prints the version
+python -m mcp_server_icinga                                                 # same as the console script
+mcp-server-icinga                                                           # exits: "no config file found ..."
 ```
 
-Without a configuration file the server exits with a clear error pointing at the lookup order. That is the expected behaviour at this stage; head over to [Configuration](03 - Configuration.md) next.
+Started without a configuration file the server exits immediately with a clear error pointing at the lookup order, which already confirms the binary runs.
+
+To check that it actually answers a tool call over MCP - before wiring up any client - point it at an empty throwaway config and call `health_check` by hand:
+
+```bash
+touch /tmp/mcp-empty.yaml
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"cli","version":"1"}}}' \
+  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"health_check","arguments":{}}}' \
+  | ICINGA_MCP_CONFIG=/tmp/mcp-empty.yaml mcp-server-icinga
+```
+
+Among the JSON-RPC replies is the `health_check` result: the server name and version, the config path, an empty `instances` map and the catalog status. That proves the install, the config lookup and the MCP stdio transport in one shot. (For what those three messages mean, see [How Tool Discovery Works](05 - How Tool Discovery Works.md).)
+
+Next: [Configuration](03 - Configuration.md) wires the server to your Icinga, then [Quickstart with Claude](04 - Quickstart with Claude.md) connects it to Claude.
