@@ -206,3 +206,29 @@ def test_resolve_core_client_returns_client() -> None:
 
     config = Config(instances={'prod': _instance_with_core()})
     assert isinstance(_resolve_core_client(config, 'prod'), Icinga2CoreClient)
+
+
+def test_resolve_core_client_auto_selects_single_instance() -> None:
+    from mcp_server_icinga.icinga2_core import Icinga2CoreClient
+
+    config = Config(instances={'prod': _instance_with_core()})
+    assert isinstance(_resolve_core_client(config), Icinga2CoreClient)
+
+
+def test_resolve_core_client_auto_selects_only_core_instance() -> None:
+    # Instances without an icinga2_core backend do not count towards the
+    # auto-selection, so a single core instance is still unambiguous.
+    from mcp_server_icinga.icinga2_core import Icinga2CoreClient
+
+    config = Config(
+        instances={'prod': _instance_with_core(), 'web-only': InstanceConfig()}
+    )
+    assert isinstance(_resolve_core_client(config), Icinga2CoreClient)
+
+
+def test_resolve_core_client_ambiguous_without_instance() -> None:
+    config = Config(
+        instances={'prod-zh': _instance_with_core(), 'prod-fr': _instance_with_core()}
+    )
+    with pytest.raises(ValueError, match='several instances'):
+        _resolve_core_client(config)

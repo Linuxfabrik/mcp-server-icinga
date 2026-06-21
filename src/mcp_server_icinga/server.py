@@ -91,13 +91,32 @@ def _plugin_summary(entry: Any) -> dict[str, Any]:
     }
 
 
-def _resolve_core_client(config: Config, instance: str) -> Icinga2CoreClient:
+def _resolve_core_client(
+    config: Config, instance: str | None = None
+) -> Icinga2CoreClient:
     """Return an Icinga 2 Core client for `instance` or raise a clear error.
 
-    Pure config lookup, no network. Raises `ValueError` when the instance is
-    unknown or has no `icinga2_core` backend, so the LLM gets an actionable
-    message instead of a connection error.
+    Pure config lookup, no network. When `instance` is omitted and exactly
+    one configured instance has an `icinga2_core` backend, that instance is
+    auto-selected; with several to choose from, a `ValueError` lists them so
+    the caller can name one. Also raises when a named instance is unknown or
+    has no `icinga2_core` backend, so the LLM gets an actionable message
+    instead of a connection error.
     """
+    core_instances = sorted(
+        name for name, inst in config.instances.items() if inst.icinga2_core is not None
+    )
+
+    if instance is None:
+        if len(core_instances) == 1:
+            instance = core_instances[0]
+        else:
+            choices = ', '.join(core_instances) or '<none>'
+            raise ValueError(
+                f'several instances have an icinga2_core backend ({choices}); '
+                f'specify which one via the instance parameter.'
+            )
+
     inst = config.instances.get(instance)
     if inst is None:
         known = ', '.join(sorted(config.instances)) or '<none>'
@@ -323,14 +342,15 @@ def build_server(
 
         @mcp.tool()
         def list_hosts(
-            instance: str,
+            instance: str | None = None,
             state: str | None = None,
             name_contains: str | None = None,
         ) -> list[dict[str, Any]]:
             """List monitored hosts of one Icinga instance with their state.
 
-            `instance` is the configured deployment name (e.g. `'prod-zh'`).
-            Call `health_check()` to discover the configured instance names.
+            `instance` is the configured deployment name (e.g. `'prod-zh'`);
+            omit it when only one instance is configured. Call `health_check()`
+            to discover the configured instance names.
 
             Each entry is a compact summary: name, address, current state
             (`UP`/`DOWN`), soft/hard state type, whether it is acknowledged
@@ -352,15 +372,16 @@ def build_server(
 
         @mcp.tool()
         def list_services(
-            instance: str,
+            instance: str | None = None,
             host: str | None = None,
             state: str | None = None,
             name_contains: str | None = None,
         ) -> list[dict[str, Any]]:
             """List monitored services of one Icinga instance with their state.
 
-            `instance` is the configured deployment name (e.g. `'prod-zh'`).
-            Call `health_check()` to discover the configured instance names.
+            `instance` is the configured deployment name (e.g. `'prod-zh'`);
+            omit it when only one instance is configured. Call `health_check()`
+            to discover the configured instance names.
 
             Each entry is a compact summary: full name (`host!service`), the
             service and host name, the host's state for context, current
@@ -386,38 +407,42 @@ def build_server(
             )
 
         @mcp.tool()
-        def get_host(instance: str, name: str) -> dict[str, Any]:
+        def get_host(name: str, instance: str | None = None) -> dict[str, Any]:
             """Return the full state summary for a single host.
 
-            `instance` is the configured deployment name (e.g. `'prod-zh'`),
-            `name` is the exact host name. Raises when the host does not
-            exist; use `list_hosts(instance, name_contains=...)` to discover
-            names.
+            `name` is the exact host name. `instance` is the configured
+            deployment name (e.g. `'prod-zh'`); omit it when only one instance
+            is configured. Raises when the host does not exist; use
+            `list_hosts(name_contains=...)` to discover names.
             """
             client = _resolve_core_client(config, instance)
             return _get_host_payload(client, name)
 
         @mcp.tool()
-        def get_service(instance: str, host: str, service: str) -> dict[str, Any]:
+        def get_service(
+            host: str, service: str, instance: str | None = None
+        ) -> dict[str, Any]:
             """Return the full state summary for a single service.
 
-            `instance` is the configured deployment name (e.g. `'prod-zh'`),
             `host` is the exact host name and `service` the service name on
-            that host. Raises when the service does not exist; use
-            `list_services(instance, host=...)` to discover names.
+            that host. `instance` is the configured deployment name (e.g.
+            `'prod-zh'`); omit it when only one instance is configured. Raises
+            when the service does not exist; use `list_services(host=...)` to
+            discover names.
             """
             client = _resolve_core_client(config, instance)
             return _get_service_payload(client, host, service)
 
         @mcp.tool()
-        def get_problems(instance: str) -> dict[str, Any]:
+        def get_problems(instance: str | None = None) -> dict[str, Any]:
             """Return everything in a problem state on one Icinga instance.
 
-            `instance` is the configured deployment name (e.g. `'prod-zh'`).
-            Returns all hosts that are not `UP` and all services that are not
-            `OK`, each as a compact summary, plus the respective problem
-            counts. This is the starting point for triage: one call gives the
-            full picture of what is currently alerting.
+            `instance` is the configured deployment name (e.g. `'prod-zh'`);
+            omit it when only one instance is configured. Returns all hosts
+            that are not `UP` and all services that are not `OK`, each as a
+            compact summary, plus the respective problem counts. This is the
+            starting point for triage: one call gives the full picture of what
+            is currently alerting.
             """
             client = _resolve_core_client(config, instance)
             return _get_problems_payload(client)

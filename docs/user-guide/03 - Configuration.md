@@ -167,7 +167,7 @@ A common production pattern: an `EnvironmentFile=/etc/mcp-server-icinga/secrets.
 
 ## Multi-instance considerations
 
-When you configure more than one instance, all instance-aware tools (the catalog tools today are global, the live Icinga tools that follow are not) take an `instance` parameter. With one instance, the parameter is optional and the single instance is auto-selected. With multiple, the LLM is instructed to ask which instance you mean, or you can name it directly in your prompt:
+The instance-aware tools (the live Icinga 2 Core tools `list_hosts`, `list_services`, `get_host`, `get_service` and `get_problems`; the catalog tools are global) take an `instance` parameter. When exactly one instance has the relevant backend configured, the parameter can be omitted and that instance is auto-selected. With several to choose from, omitting it returns an error listing the candidates, so the LLM asks which one you mean, or you name it directly in your prompt:
 
 > What is currently red on the `prod-zh` instance?
 
