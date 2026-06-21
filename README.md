@@ -57,12 +57,58 @@ Early development. Architecture, configuration and tool surface are unstable and
 
 ## Installation
 
-Installation instructions will be documented once the first release is cut.
+The server runs anywhere Python 3.14 runs. It does not need to live on the Icinga master, but it does need network access to the Icinga REST APIs you point it at, and an MCP-capable client (tested with [Claude Desktop](https://claude.ai/download) and [Claude Code](https://docs.claude.com/en/docs/claude-code)).
+
+Until the first PyPI release, install directly from GitHub:
+
+```bash
+pip install --user git+https://github.com/Linuxfabrik/mcp-server-icinga.git
+```
+
+For local development, install in editable mode inside a virtual environment:
+
+```bash
+git clone https://github.com/Linuxfabrik/mcp-server-icinga.git
+cd mcp-server-icinga
+python3.14 -m venv .venv
+source .venv/bin/activate
+pip install --editable '.'
+```
+
+The package exposes both a console script and a runnable module:
+
+```bash
+mcp-server-icinga              # started by the MCP client over stdio
+python -m mcp_server_icinga    # equivalent
+```
+
+Without a configuration file the server exits with a clear error pointing at the lookup order. See the [Installation guide](https://linuxfabrik.github.io/mcp-server-icinga/user-guide/02%20-%20Installation/) for the full walkthrough.
 
 
 ## Configuration
 
-Configuration documentation will follow as soon as the configuration surface stabilises.
+The server is configured through a single YAML file. It describes one or more Icinga deployments ("instances") plus the global Linuxfabrik monitoring-plugins catalog. Secrets do not live in the YAML; they are resolved at load time from environment variables (`!env`) or files on disk (`!file`).
+
+The configuration file is looked up in this order, first match wins:
+
+1. The path in the `ICINGA_MCP_CONFIG` environment variable.
+2. `$XDG_CONFIG_HOME/mcp-server-icinga/config.yaml` (default: `~/.config/mcp-server-icinga/config.yaml`).
+3. `/etc/mcp-server-icinga/config.yaml`.
+
+A minimal read-only setup with a single instance:
+
+```yaml
+instances:
+  prod:
+    icinga2_core:
+      url: 'https://icinga2.example.com:5665'
+      username: 'mcp-readonly'
+      password: !env ICINGA2_PROD_PASSWORD
+```
+
+The instance name (`prod` above) is the identifier you reference in chat ("what is currently red on `prod`?"). Each instance carries up to four independently optional backends (`icinga2_core`, `icinga_web`, `icinga_director`, `tsdb`); a tool whose backend is absent on the targeted instance is simply not registered. An annotated example with every backend ships at [`examples/config.example.yaml`](examples/config.example.yaml).
+
+For the field reference, secret handling and wiring the server into Claude Desktop or Claude Code, see the [Configuration guide](https://linuxfabrik.github.io/mcp-server-icinga/user-guide/03%20-%20Configuration/) and the [Quickstart](https://linuxfabrik.github.io/mcp-server-icinga/user-guide/04%20-%20Quickstart%20with%20Claude/).
 
 
 ## Related Projects
