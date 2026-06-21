@@ -72,7 +72,7 @@ def _health_check_payload(
         }
 
     return {
-        'name': 'mcp-server-icinga',
+        'name': 'Linuxfabrik Icinga',
         'version': __version__,
         'config_path': str(config_path),
         'instances': instances_status,
@@ -457,7 +457,7 @@ def build_server(
     catalog was loaded successfully. That follows the principle-of-least-
     privilege pattern: unconfigured backends produce no tools.
     """
-    mcp = FastMCP('mcp-server-icinga')
+    mcp = FastMCP('Linuxfabrik Icinga')
 
     @mcp.tool()
     def health_check() -> dict[str, Any]:

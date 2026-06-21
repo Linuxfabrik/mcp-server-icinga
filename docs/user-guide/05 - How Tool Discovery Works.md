@@ -20,7 +20,7 @@ The full registration of `health_check` lives in [`src/mcp_server_icinga/server.
 ```python
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP('mcp-server-icinga')
+mcp = FastMCP('Linuxfabrik Icinga')
 
 @mcp.tool()
 def health_check() -> dict[str, Any]:
@@ -177,7 +177,7 @@ What happens, in order:
         "content": [
           {
             "type": "text",
-            "text": "{\"name\": \"mcp-server-icinga\", \"version\": \"0.0.0\", \"config_path\": \"/home/markusfrei/.config/Linuxfabrik/mcp-server-icinga/config.yaml\", \"instances\": {}, \"monitoring_plugins_catalog\": {\"source\": \"live\", \"built_at\": \"2026-04-22T08:00:00+00:00\", \"monitoring_plugins_ref\": null, \"plugin_count\": 251}}"
+            "text": "{\"name\": \"Linuxfabrik Icinga\", \"version\": \"0.0.0\", \"config_path\": \"/home/markusfrei/.config/Linuxfabrik/mcp-server-icinga/config.yaml\", \"instances\": {}, \"monitoring_plugins_catalog\": {\"source\": \"live\", \"built_at\": \"2026-04-22T08:00:00+00:00\", \"monitoring_plugins_ref\": null, \"plugin_count\": 251}}"
           }
         ],
         "isError": false
@@ -189,7 +189,7 @@ What happens, in order:
 
 4. **The LLM reads the result.** The tool result is appended to the conversation as a hidden message. The LLM then composes a human-readable answer:
 
-    > Health-Check erfolgreich. Der Server `mcp-server-icinga v0.0.0` laeuft und laedt die Konfig aus `/home/markusfrei/.config/Linuxfabrik/mcp-server-icinga/config.yaml`. Aktuell ist keine Icinga-Instanz konfiguriert. Der Plugin-Katalog laedt live, kennt 251 Plugins.
+    > Health-Check erfolgreich. Der Server `Linuxfabrik Icinga v0.0.0` laeuft und laedt die Konfig aus `/home/markusfrei/.config/Linuxfabrik/mcp-server-icinga/config.yaml`. Aktuell ist keine Icinga-Instanz konfiguriert. Der Plugin-Katalog laedt live, kennt 251 Plugins.
 
 
 ## Why this design matters when you write tools

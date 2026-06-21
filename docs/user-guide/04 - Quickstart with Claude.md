@@ -110,7 +110,7 @@ Expected response: Claude calls `health_check`, returns a JSON-shaped payload si
 
 ```json
 {
-  "name": "mcp-server-icinga",
+  "name": "Linuxfabrik Icinga",
   "version": "0.0.0",
   "config_path": "/home/yourself/.config/Linuxfabrik/mcp-server-icinga/config.yaml",
   "instances": {

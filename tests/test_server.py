@@ -67,7 +67,7 @@ def _instance_with_core(write: bool = False) -> InstanceConfig:
 
 def test_health_check_payload_no_instances() -> None:
     payload = _health_check_payload(Config(), _FAKE_CONFIG_PATH)
-    assert payload['name'] == 'mcp-server-icinga'
+    assert payload['name'] == 'Linuxfabrik Icinga'
     assert payload['version'] == __version__
     assert payload['config_path'] == str(_FAKE_CONFIG_PATH)
     assert payload['instances'] == {}
