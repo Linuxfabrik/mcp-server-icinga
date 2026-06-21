@@ -8,8 +8,8 @@
 The server checks for a configuration file in this order and uses the first match:
 
 1. The path in the `ICINGA_MCP_CONFIG` environment variable.
-2. `$XDG_CONFIG_HOME/mcp-server-icinga/config.yaml` (default: `~/.config/mcp-server-icinga/config.yaml`).
-3. `/etc/mcp-server-icinga/config.yaml`.
+2. `$XDG_CONFIG_HOME/Linuxfabrik/mcp-server-icinga/config.yaml` (default: `~/.config/Linuxfabrik/mcp-server-icinga/config.yaml`).
+3. `/etc/Linuxfabrik/mcp-server-icinga/config.yaml`.
 
 For local testing the user-specific path is the most convenient. For systemd-managed deployments the system path is the natural choice. Use `ICINGA_MCP_CONFIG` to override both, for example to point at a tenant-specific file.
 
@@ -29,8 +29,8 @@ Both sections are optional. An empty file (or a file with `instances: {}`) is va
 **Smoke test.** No instance, no catalog, only `health_check` works:
 
 ```bash
-mkdir --parents ~/.config/mcp-server-icinga
-touch ~/.config/mcp-server-icinga/config.yaml
+mkdir --parents ~/.config/Linuxfabrik/mcp-server-icinga
+touch ~/.config/Linuxfabrik/mcp-server-icinga/config.yaml
 ```
 
 **Single Icinga 2 Core, read-only:**
@@ -162,7 +162,7 @@ Both are valid; mix them per backend if you want. Rules of thumb:
 - **`!file`** scales better when you have many secrets across many instances. The MCP client config (`claude_desktop_config.json`) stays small, the secrets are managed by your existing credential store / systemd unit / container runtime, and the server process only sees the env vars it needs (mostly just `ICINGA_MCP_CONFIG`).
 - **`!env`** is convenient for local development and for one-off secrets where wiring a file is overkill.
 
-A common production pattern: an `EnvironmentFile=/etc/mcp-server-icinga/secrets.env` for a handful of well-known secrets, plus `!file /run/credentials/...` for everything that is per-instance and managed by systemd `LoadCredential=` or a vault-style mechanism.
+A common production pattern: an `EnvironmentFile=/etc/Linuxfabrik/mcp-server-icinga/secrets.env` for a handful of well-known secrets, plus `!file /run/credentials/...` for everything that is per-instance and managed by systemd `LoadCredential=` or a vault-style mechanism.
 
 
 ## Multi-instance considerations

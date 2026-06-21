@@ -3,9 +3,9 @@
 # Copy this file to one of the locations the server checks (in order):
 #
 #   1. The path in the ICINGA_MCP_CONFIG environment variable
-#   2. $XDG_CONFIG_HOME/mcp-server-icinga/config.yaml
-#      (default: ~/.config/mcp-server-icinga/config.yaml)
-#   3. /etc/mcp-server-icinga/config.yaml
+#   2. $XDG_CONFIG_HOME/Linuxfabrik/mcp-server-icinga/config.yaml
+#      (default: ~/.config/Linuxfabrik/mcp-server-icinga/config.yaml)
+#   3. /etc/Linuxfabrik/mcp-server-icinga/config.yaml
 #
 # Secrets are NOT stored in this file. Two custom YAML tags resolve them
 # at load time:

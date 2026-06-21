@@ -140,7 +140,7 @@ def test_find_config_path_falls_back_to_xdg(
 ) -> None:
     monkeypatch.delenv('ICINGA_MCP_CONFIG', raising=False)
     monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path))
-    user_path = tmp_path / 'mcp-server-icinga' / 'config.yaml'
+    user_path = tmp_path / 'Linuxfabrik' / 'mcp-server-icinga' / 'config.yaml'
     user_path.parent.mkdir(parents=True)
     user_path.touch()
     assert find_config_path() == user_path
@@ -369,4 +369,4 @@ def test_bundled_example_validates(
 
 
 def test_system_path_constant() -> None:
-    assert Path('/etc/mcp-server-icinga/config.yaml') == _SYSTEM_PATH
+    assert Path('/etc/Linuxfabrik/mcp-server-icinga/config.yaml') == _SYSTEM_PATH

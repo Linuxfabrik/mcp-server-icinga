@@ -21,9 +21,9 @@ them at load time:
 Lookup order for the config file (first match wins):
 
 1. ``$ICINGA_MCP_CONFIG`` (explicit override)
-2. ``$XDG_CONFIG_HOME/mcp-server-icinga/config.yaml`` (default
-   ``~/.config/mcp-server-icinga/config.yaml``)
-3. ``/etc/mcp-server-icinga/config.yaml``
+2. ``$XDG_CONFIG_HOME/Linuxfabrik/mcp-server-icinga/config.yaml`` (default
+   ``~/.config/Linuxfabrik/mcp-server-icinga/config.yaml``)
+3. ``/etc/Linuxfabrik/mcp-server-icinga/config.yaml``
 
 Every backend section inside an instance is independently optional. The
 instances dict itself can be empty: a configuration without any instance
@@ -204,8 +204,8 @@ class Config(BaseModel):
 # ---------------------------------------------------------------------------
 
 _ENV_VAR = 'ICINGA_MCP_CONFIG'
-_USER_RELATIVE = Path('mcp-server-icinga') / 'config.yaml'
-_SYSTEM_PATH = Path('/etc/mcp-server-icinga/config.yaml')
+_USER_RELATIVE = Path('Linuxfabrik') / 'mcp-server-icinga' / 'config.yaml'
+_SYSTEM_PATH = Path('/etc/Linuxfabrik/mcp-server-icinga/config.yaml')
 
 
 def _user_config_path() -> Path:

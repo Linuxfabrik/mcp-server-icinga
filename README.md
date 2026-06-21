@@ -92,8 +92,8 @@ The server is configured through a single YAML file. It describes one or more Ic
 The configuration file is looked up in this order, first match wins:
 
 1. The path in the `ICINGA_MCP_CONFIG` environment variable.
-2. `$XDG_CONFIG_HOME/mcp-server-icinga/config.yaml` (default: `~/.config/mcp-server-icinga/config.yaml`).
-3. `/etc/mcp-server-icinga/config.yaml`.
+2. `$XDG_CONFIG_HOME/Linuxfabrik/mcp-server-icinga/config.yaml` (default: `~/.config/Linuxfabrik/mcp-server-icinga/config.yaml`).
+3. `/etc/Linuxfabrik/mcp-server-icinga/config.yaml`.
 
 A minimal read-only setup with a single instance:
 
@@ -106,7 +106,7 @@ instances:
       password: !env ICINGA2_PROD_PASSWORD
 ```
 
-The instance name (`prod` above) is the identifier you reference in chat ("what is currently red on `prod`?"). Each instance carries up to four independently optional backends (`icinga2_core`, `icinga_web`, `icinga_director`, `tsdb`); a tool whose backend is absent on the targeted instance is simply not registered. An annotated example with every backend ships at [`examples/config.example.yaml`](examples/config.example.yaml).
+The instance name (`prod` above) is the identifier you reference in chat ("what is currently red on `prod`?"). Each instance carries up to four independently optional backends (`icinga2_core`, `icinga_web`, `icinga_director`, `tsdb`); a tool whose backend is absent on the targeted instance is simply not registered. An annotated example with every backend ships at [`examples/config.example.yaml`](https://github.com/Linuxfabrik/mcp-server-icinga/blob/main/examples/config.example.yaml).
 
 For the field reference, secret handling and wiring the server into Claude Desktop or Claude Code, see the [Configuration guide](https://linuxfabrik.github.io/mcp-server-icinga/user-guide/03%20-%20Configuration/) and the [Quickstart](https://linuxfabrik.github.io/mcp-server-icinga/user-guide/04%20-%20Quickstart%20with%20Claude/).
 

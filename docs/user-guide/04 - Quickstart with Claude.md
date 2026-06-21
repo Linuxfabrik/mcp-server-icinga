@@ -8,8 +8,8 @@ This page walks through bringing up `mcp-server-icinga` end-to-end and verifying
 For the smoke test you do not need any Icinga backend at all. Create an empty configuration file at the user-default path:
 
 ```bash
-mkdir --parents ~/.config/mcp-server-icinga
-touch ~/.config/mcp-server-icinga/config.yaml
+mkdir --parents ~/.config/Linuxfabrik/mcp-server-icinga
+touch ~/.config/Linuxfabrik/mcp-server-icinga/config.yaml
 ```
 
 The server accepts an empty file as a valid configuration: nothing is wired up, only `health_check` is exposed.
@@ -46,7 +46,7 @@ Add an entry under `mcpServers`:
     "icinga": {
       "command": "mcp-server-icinga",
       "env": {
-        "ICINGA_MCP_CONFIG": "/home/yourself/.config/mcp-server-icinga/config.yaml",
+        "ICINGA_MCP_CONFIG": "/home/yourself/.config/Linuxfabrik/mcp-server-icinga/config.yaml",
         "ICINGA2_PROD_PASSWORD": "linuxfabrik"
       }
     }
@@ -75,7 +75,7 @@ Or write the equivalent JSON into `.mcp.json` at the project root:
     "icinga": {
       "command": "mcp-server-icinga",
       "env": {
-        "ICINGA_MCP_CONFIG": "/home/yourself/.config/mcp-server-icinga/config.yaml",
+        "ICINGA_MCP_CONFIG": "/home/yourself/.config/Linuxfabrik/mcp-server-icinga/config.yaml",
         "ICINGA2_PROD_PASSWORD": "linuxfabrik"
       }
     }
@@ -106,7 +106,7 @@ Expected response: Claude calls `health_check`, returns a JSON-shaped payload si
 {
   "name": "mcp-server-icinga",
   "version": "0.0.0",
-  "config_path": "/home/yourself/.config/mcp-server-icinga/config.yaml",
+  "config_path": "/home/yourself/.config/Linuxfabrik/mcp-server-icinga/config.yaml",
   "instances": {
     "prod": {
       "icinga2_core": true,
