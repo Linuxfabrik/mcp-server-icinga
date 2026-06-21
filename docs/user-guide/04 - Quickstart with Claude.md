@@ -43,7 +43,7 @@ Add an entry under `mcpServers`:
 ```json
 {
   "mcpServers": {
-    "linuxfabrik-icinga": {
+    "Linuxfabrik-Icinga": {
       "command": "mcp-server-icinga",
       "env": {
         "ICINGA_MCP_CONFIG": "/home/yourself/.config/Linuxfabrik/mcp-server-icinga/config.yaml",
@@ -64,13 +64,13 @@ Restart Claude Desktop. The server appears under the "Connected MCP servers" ind
 Register the server with the `claude mcp` CLI. With `--scope user` it is available in every project, not just the current directory:
 
 ```bash
-claude mcp add --scope user linuxfabrik-icinga -- mcp-server-icinga
+claude mcp add --scope user Linuxfabrik-Icinga -- mcp-server-icinga
 ```
 
 If `mcp-server-icinga` is not on the PATH that Claude Code spawns (common with a virtualenv or source install), pass the absolute path of the binary instead. For the editable install from [Installation](02 - Installation.md) that is the venv's `bin/`:
 
 ```bash
-claude mcp add --scope user linuxfabrik-icinga -- /path/to/mcp-server-icinga/.venv/bin/mcp-server-icinga
+claude mcp add --scope user Linuxfabrik-Icinga -- /path/to/mcp-server-icinga/.venv/bin/mcp-server-icinga
 ```
 
 Drop `--scope user` to register the server only for the current project (written to `.mcp.json` at the project root). The equivalent JSON is:
@@ -78,7 +78,7 @@ Drop `--scope user` to register the server only for the current project (written
 ```json
 {
   "mcpServers": {
-    "linuxfabrik-icinga": {
+    "Linuxfabrik-Icinga": {
       "command": "mcp-server-icinga",
       "env": {
         "ICINGA_MCP_CONFIG": "/home/yourself/.config/Linuxfabrik/mcp-server-icinga/config.yaml",
@@ -100,11 +100,11 @@ claude mcp list
 
 Open a chat with Claude and ask it to use the new server. Useful first prompts:
 
-> Run the `health_check` tool from the `linuxfabrik-icinga` MCP server.
+> Run the `health_check` tool from the `Linuxfabrik-Icinga` MCP server.
 
-> Show me the status of the `linuxfabrik-icinga` MCP server.
+> Show me the status of the `Linuxfabrik-Icinga` MCP server.
 
-> Which Icinga backends does the `linuxfabrik-icinga` MCP server know about?
+> Which Icinga backends does the `Linuxfabrik-Icinga` MCP server know about?
 
 Expected response: Claude calls `health_check`, returns a JSON-shaped payload similar to:
 

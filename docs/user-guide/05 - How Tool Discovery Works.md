@@ -145,13 +145,13 @@ The tool list depends on what the configuration enabled. With an empty `config.y
 
 User types in Claude Code:
 
-> Run the `health_check` tool from the `linuxfabrik-icinga` MCP server.
+> Run the `health_check` tool from the `Linuxfabrik-Icinga` MCP server.
 
 What happens, in order:
 
-1. **The LLM reads its context.** The tool list from step 3 is part of the prompt for this turn. The LLM sees that the `linuxfabrik-icinga` server exposes a `health_check` tool whose description starts with "Report server status and which backends are configured." That matches the user's request directly.
+1. **The LLM reads its context.** The tool list from step 3 is part of the prompt for this turn. The LLM sees that the `Linuxfabrik-Icinga` server exposes a `health_check` tool whose description starts with "Report server status and which backends are configured." That matches the user's request directly.
 
-2. **The LLM emits a structured tool call.** Internally this is the same function-calling mechanism it uses for any tool. The Claude Code client receives a request to call `health_check` on the `linuxfabrik-icinga` server with no arguments, and forwards the JSON-RPC over stdio:
+2. **The LLM emits a structured tool call.** Internally this is the same function-calling mechanism it uses for any tool. The Claude Code client receives a request to call `health_check` on the `Linuxfabrik-Icinga` server with no arguments, and forwards the JSON-RPC over stdio:
 
     ```json
     // Client -> server
