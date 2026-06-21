@@ -88,7 +88,13 @@ class Icinga2CoreNotFoundError(Icinga2CoreError):
 
 
 class Icinga2CoreClient:
-    """Read-only access to one Icinga 2 Core REST API endpoint."""
+    """Access to one Icinga 2 Core REST API endpoint.
+
+    Queries always use the read credentials. Actions (acknowledge, schedule
+    or remove a downtime, reschedule a check) use the separate write
+    credentials and are only possible when those are configured;
+    `write_author` is the identity actions are attributed to.
+    """
 
     def __init__(
         self,
@@ -106,6 +112,17 @@ class Icinga2CoreClient:
         # Injectable transport is the test seam: production code passes None
         # and gets a real network transport.
         self._transport = transport
+
+        if config.write_password is not None:
+            author = config.write_username or config.username
+            self._write_auth: tuple[str, str] | None = (
+                author,
+                config.write_password.get_secret_value(),
+            )
+            self.write_author: str | None = author
+        else:
+            self._write_auth = None
+            self.write_author = None
 
     def query_hosts(
         self,
@@ -133,6 +150,25 @@ class Icinga2CoreClient:
             joins=_SERVICE_JOINS,
         )
 
+    def run_action(self, action: str, body: dict[str, Any]) -> list[dict[str, Any]]:
+        """POST to `/v1/actions/<action>` with the write credentials.
+
+        Returns the per-object `results` list (each item carries a `code` and
+        a `status` message). Raises `Icinga2CoreNotFoundError` when the filter
+        matches no object (HTTP 404).
+        """
+        if self._write_auth is None:
+            raise Icinga2CoreError(
+                'this instance has no write credentials configured; '
+                'set write_username / write_password to enable actions'
+            )
+        url = f'{self._base_url}/v1/actions/{action}'
+        response = self._post(
+            url, self._write_auth, {'Accept': 'application/json'}, body
+        )
+        self._raise_for_status(response, url, missing_is_empty=False)
+        return self._results(response, url)
+
     # -- low level ---------------------------------------------------------
 
     def _query(
@@ -158,35 +194,61 @@ class Icinga2CoreClient:
             # GET requests carry no body, so override the method on a POST.
             'X-HTTP-Method-Override': 'GET',
         }
+        response = self._post(url, self._auth, headers, body)
+        # A filtered query that matches nothing returns 200 with an empty
+        # results array; a 404 only happens when nothing matches at all, so
+        # treat it the same as "no results" and let the caller decide.
+        if self._raise_for_status(response, url, missing_is_empty=True):
+            return []
+        return self._results(response, url)
 
+    def _post(
+        self,
+        url: str,
+        auth: tuple[str, str],
+        headers: dict[str, str],
+        body: dict[str, Any],
+    ) -> httpx.Response:
         try:
             with httpx.Client(
-                auth=self._auth,
+                auth=auth,
                 verify=self._verify,
                 timeout=self._timeout,
                 transport=self._transport,
             ) as client:
-                response = client.post(url, headers=headers, json=body)
+                return client.post(url, headers=headers, json=body)
         except httpx.HTTPError as exc:
             raise Icinga2CoreError(f'request to {url} failed: {exc}') from exc
 
+    def _raise_for_status(
+        self, response: httpx.Response, url: str, *, missing_is_empty: bool
+    ) -> bool:
+        """Map error status codes to exceptions.
+
+        Returns `True` only when the response is a 404 and the caller treats a
+        missing match as an empty result (queries); for actions a 404 means
+        the filter matched no object and is raised as a not-found error.
+        """
         if response.status_code in (401, 403):
             raise Icinga2CoreAuthError(
                 f'authentication failed for {self._base_url} '
                 f'(HTTP {response.status_code}); check the configured credentials '
                 f'and the ApiUser permissions'
             )
-        # A filtered query that matches nothing returns 200 with an empty
-        # results array; a 404 only happens when nothing matches at all, so
-        # treat it the same as "no results" and let the caller decide.
         if response.status_code == 404:
-            return []
+            if missing_is_empty:
+                return True
+            raise Icinga2CoreNotFoundError(
+                f'no object matched the request to {url}: {_error_detail(response)}'
+            )
         if response.status_code >= 400:
             raise Icinga2CoreError(
                 f'Icinga 2 Core API error {response.status_code} for {url}: '
                 f'{_error_detail(response)}'
             )
+        return False
 
+    def _results(self, response: httpx.Response, url: str) -> list[dict[str, Any]]:
         try:
             payload = response.json()
         except ValueError as exc:

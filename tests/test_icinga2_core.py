@@ -25,11 +25,17 @@ from mcp_server_icinga.icinga2_core import (
     summarize_service,
 )
 from mcp_server_icinga.server import (
+    _acknowledge_payload,
+    _action_result,
     _get_host_payload,
     _get_problems_payload,
     _get_service_payload,
     _list_hosts_payload,
     _list_services_payload,
+    _object_target,
+    _remove_downtime_payload,
+    _reschedule_check_payload,
+    _schedule_downtime_payload,
 )
 
 # Fake credential, irrelevant to the assertions. # nosec keeps bandit quiet.
@@ -49,8 +55,30 @@ def _make_client(handler: Handler) -> Icinga2CoreClient:
     return Icinga2CoreClient(config, transport=httpx.MockTransport(handler))
 
 
+def _make_write_client(handler: Handler) -> Icinga2CoreClient:
+    config = Icinga2CoreConfig.model_validate(
+        {
+            'url': 'https://icinga.example.com:5665',
+            'username': 'ro',
+            'password': _FAKE_PASSWORD,
+            'write_username': 'rw',
+            'write_password': _FAKE_PASSWORD,
+        }
+    )
+    return Icinga2CoreClient(config, transport=httpx.MockTransport(handler))
+
+
 def _results(*rows: dict) -> httpx.Response:
     return httpx.Response(200, json={'results': list(rows)})
+
+
+def _capture_action(store: dict) -> Icinga2CoreClient:
+    def handler(request: httpx.Request) -> httpx.Response:
+        store['action'] = str(request.url).rsplit('/', 1)[-1]
+        store['body'] = json.loads(request.content)
+        return httpx.Response(200, json={'results': [{'code': 200.0, 'status': 'ok'}]})
+
+    return _make_write_client(handler)
 
 
 def _host_row(name: str, state: int = 0, **attrs) -> dict:
@@ -292,3 +320,131 @@ def test_get_problems_payload_aggregates() -> None:
     assert problems['host_problem_count'] == 1
     assert problems['service_problem_count'] == 2
     assert [s['name'] for s in problems['services']] == ['web01!disk', 'web02!cpu']
+
+
+# ---------------------------------------------------------------------------
+# Client: actions (write)
+# ---------------------------------------------------------------------------
+
+
+def test_run_action_without_write_credentials_raises() -> None:
+    client = _make_client(lambda request: _results())
+    with pytest.raises(Icinga2CoreError, match='no write credentials'):
+        client.run_action('acknowledge-problem', {})
+
+
+def test_write_author_exposed() -> None:
+    assert _make_write_client(lambda request: _results()).write_author == 'rw'
+    assert _make_client(lambda request: _results()).write_author is None
+
+
+def test_run_action_posts_to_actions_with_write_auth() -> None:
+    import base64
+
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured['url'] = str(request.url)
+        captured['auth'] = request.headers.get('Authorization')
+        return httpx.Response(200, json={'results': [{'code': 200.0, 'status': 'ok'}]})
+
+    client = _make_write_client(handler)
+    results = client.run_action('acknowledge-problem', {'type': 'Host'})
+
+    assert captured['url'].endswith('/v1/actions/acknowledge-problem')
+    decoded = base64.b64decode(captured['auth'].split()[1]).decode()
+    assert decoded == f'rw:{_FAKE_PASSWORD}'
+    assert results[0]['status'] == 'ok'
+
+
+def test_run_action_404_is_not_found() -> None:
+    client = _make_write_client(lambda request: httpx.Response(404, json={}))
+    with pytest.raises(Icinga2CoreNotFoundError):
+        client.run_action('reschedule-check', {})
+
+
+# ---------------------------------------------------------------------------
+# Action helpers
+# ---------------------------------------------------------------------------
+
+
+def test_object_target_host_and_service() -> None:
+    assert _object_target('web01', None)[0] == 'Host'
+    object_type, _filter, filter_vars = _object_target('web01', 'disk')
+    assert object_type == 'Service'
+    assert filter_vars == {'host_name': 'web01', 'service_name': 'disk'}
+
+
+def test_action_result_ok_with_downtime_name() -> None:
+    result = _action_result([{'code': 200.0, 'status': 'ok', 'name': 'dt-1'}])
+    assert result['ok'] is True
+    assert result['count'] == 1
+    assert result['results'][0]['name'] == 'dt-1'
+
+
+def test_action_result_not_ok_on_error_code() -> None:
+    assert _action_result([{'code': 500.0, 'status': 'boom'}])['ok'] is False
+
+
+def test_action_result_empty_is_not_ok() -> None:
+    assert _action_result([])['ok'] is False
+
+
+def test_acknowledge_payload_builds_body() -> None:
+    captured: dict = {}
+    client = _capture_action(captured)
+    _acknowledge_payload(client, 'web01', 'disk', 'fixing it', sticky=True, notify=True)
+    assert captured['action'] == 'acknowledge-problem'
+    body = captured['body']
+    assert body['type'] == 'Service'
+    assert body['author'] == 'rw'
+    assert body['comment'] == 'fixing it'
+    assert body['sticky'] is True
+    assert body['notify'] is True
+    assert body['filter_vars'] == {'host_name': 'web01', 'service_name': 'disk'}
+
+
+def test_acknowledge_payload_expiry() -> None:
+    captured: dict = {}
+    client = _capture_action(captured)
+    _acknowledge_payload(client, 'web01', None, 'temp', expiry_hours=1)
+    assert 'expiry' in captured['body']
+    assert captured['body']['type'] == 'Host'
+
+
+def test_schedule_downtime_payload_window_and_fixed() -> None:
+    captured: dict = {}
+    client = _capture_action(captured)
+    _schedule_downtime_payload(
+        client, 'web01', None, 'maintenance', hours=3, all_services=True
+    )
+    assert captured['action'] == 'schedule-downtime'
+    body = captured['body']
+    assert body['type'] == 'Host'
+    assert body['fixed'] is True
+    assert body['all_services'] is True
+    assert body['end_time'] - body['start_time'] == (3 * 3600)
+
+
+def test_schedule_downtime_payload_service_ignores_all_services() -> None:
+    captured: dict = {}
+    client = _capture_action(captured)
+    _schedule_downtime_payload(client, 'web01', 'disk', 'm', all_services=True)
+    assert 'all_services' not in captured['body']
+
+
+def test_remove_downtime_payload() -> None:
+    captured: dict = {}
+    client = _capture_action(captured)
+    _remove_downtime_payload(client, 'web01', None)
+    assert captured['action'] == 'remove-downtime'
+    assert captured['body']['type'] == 'Host'
+
+
+def test_reschedule_check_payload_force() -> None:
+    captured: dict = {}
+    client = _capture_action(captured)
+    _reschedule_check_payload(client, 'web01', 'disk', force=True)
+    assert captured['action'] == 'reschedule-check'
+    assert captured['body']['force'] is True
+    assert captured['body']['type'] == 'Service'

@@ -12,6 +12,7 @@ Icinga 2 Core API works without an Icinga Director or TSDB section.
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -220,6 +221,151 @@ def _get_problems_payload(client: Icinga2CoreClient) -> dict[str, Any]:
         'host_problem_count': len(host_summaries),
         'service_problem_count': len(service_summaries),
     }
+
+
+# ---------------------------------------------------------------------------
+# Icinga 2 Core actions (write)
+# ---------------------------------------------------------------------------
+
+
+def _resolve_write_client(
+    config: Config, instance: str | None = None
+) -> Icinga2CoreClient:
+    """Return a write-capable Icinga 2 Core client or raise a clear error.
+
+    Like `_resolve_core_client`, but only instances whose `icinga2_core`
+    backend carries write credentials qualify. Auto-selects when exactly one
+    does; otherwise lists the candidates.
+    """
+    write_instances = sorted(
+        name
+        for name, inst in config.instances.items()
+        if inst.icinga2_core is not None
+        and inst.icinga2_core.write_password is not None
+    )
+
+    if instance is None:
+        if len(write_instances) == 1:
+            instance = write_instances[0]
+        else:
+            choices = ', '.join(write_instances) or '<none>'
+            raise ValueError(
+                f'several instances have write credentials ({choices}); '
+                f'specify which one via the instance parameter.'
+            )
+
+    client = _resolve_core_client(config, instance)
+    if client.write_author is None:
+        raise ValueError(
+            f'instance {instance!r} has no write credentials configured; '
+            f'acknowledge / downtime / reschedule are disabled for it.'
+        )
+    return client
+
+
+def _object_target(host: str, service: str | None) -> tuple[str, str, dict[str, Any]]:
+    """Build the (type, filter, filter_vars) targeting one host or service."""
+    if service is not None:
+        return (
+            'Service',
+            'host.name==host_name && service.name==service_name',
+            {'host_name': host, 'service_name': service},
+        )
+    return ('Host', 'host.name==host_name', {'host_name': host})
+
+
+def _action_result(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Condense an Icinga actions response into an ok flag plus per-object rows."""
+    rows: list[dict[str, Any]] = []
+    for item in results:
+        row: dict[str, Any] = {
+            'code': item.get('code'),
+            'status': item.get('status'),
+        }
+        if 'name' in item:
+            # schedule-downtime returns the created downtime name.
+            row['name'] = item['name']
+        rows.append(row)
+    ok = bool(rows) and all((row['code'] or 0) < 400 for row in rows)
+    return {'ok': ok, 'count': len(rows), 'results': rows}
+
+
+def _acknowledge_payload(
+    client: Icinga2CoreClient,
+    host: str,
+    service: str | None,
+    comment: str,
+    sticky: bool = False,
+    notify: bool = False,
+    expiry_hours: float | None = None,
+) -> dict[str, Any]:
+    object_type, filter_expr, filter_vars = _object_target(host, service)
+    body: dict[str, Any] = {
+        'type': object_type,
+        'filter': filter_expr,
+        'filter_vars': filter_vars,
+        'author': client.write_author or '',
+        'comment': comment,
+        'sticky': sticky,
+        'notify': notify,
+    }
+    if expiry_hours is not None:
+        body['expiry'] = int(time.time() + expiry_hours * 3600)
+    return _action_result(client.run_action('acknowledge-problem', body))
+
+
+def _schedule_downtime_payload(
+    client: Icinga2CoreClient,
+    host: str,
+    service: str | None,
+    comment: str,
+    hours: float = 2.0,
+    all_services: bool = False,
+) -> dict[str, Any]:
+    object_type, filter_expr, filter_vars = _object_target(host, service)
+    start = int(time.time())
+    body: dict[str, Any] = {
+        'type': object_type,
+        'filter': filter_expr,
+        'filter_vars': filter_vars,
+        'author': client.write_author or '',
+        'comment': comment,
+        'start_time': start,
+        'end_time': int(start + hours * 3600),
+        'fixed': True,
+    }
+    if object_type == 'Host' and all_services:
+        body['all_services'] = True
+    return _action_result(client.run_action('schedule-downtime', body))
+
+
+def _remove_downtime_payload(
+    client: Icinga2CoreClient, host: str, service: str | None
+) -> dict[str, Any]:
+    object_type, filter_expr, filter_vars = _object_target(host, service)
+    body: dict[str, Any] = {
+        'type': object_type,
+        'filter': filter_expr,
+        'filter_vars': filter_vars,
+        'author': client.write_author or '',
+    }
+    return _action_result(client.run_action('remove-downtime', body))
+
+
+def _reschedule_check_payload(
+    client: Icinga2CoreClient,
+    host: str,
+    service: str | None,
+    force: bool = False,
+) -> dict[str, Any]:
+    object_type, filter_expr, filter_vars = _object_target(host, service)
+    body: dict[str, Any] = {
+        'type': object_type,
+        'filter': filter_expr,
+        'filter_vars': filter_vars,
+        'force': force,
+    }
+    return _action_result(client.run_action('reschedule-check', body))
 
 
 def build_server(
@@ -446,6 +592,126 @@ def build_server(
             """
             client = _resolve_core_client(config, instance)
             return _get_problems_payload(client)
+
+    if any(
+        inst.icinga2_core is not None and inst.icinga2_core.write_password is not None
+        for inst in config.instances.values()
+    ):
+
+        @mcp.tool()
+        def acknowledge_problem(
+            host: str,
+            comment: str,
+            service: str | None = None,
+            instance: str | None = None,
+            sticky: bool = False,
+            notify: bool = False,
+            expiry_hours: float | None = None,
+        ) -> dict[str, Any]:
+            """Acknowledge the current problem of a host or service.
+
+            This mutates Icinga: it suppresses repeat notifications for the
+            current problem and is attributed to the configured write user.
+            Only available for instances that have write credentials.
+
+            - `host`: exact host name. Required.
+            - `comment`: why it is being acknowledged. Required.
+            - `service`: service name on `host`; omit to acknowledge the host
+              problem itself.
+            - `instance`: deployment name; omit when only one write-capable
+              instance is configured.
+            - `sticky`: keep the acknowledgement until full recovery (not just
+              until the state improves). Defaults to false.
+            - `notify`: send an acknowledgement notification. Defaults to false.
+            - `expiry_hours`: auto-remove the acknowledgement after this many
+              hours. Omit for no expiry.
+            """
+            client = _resolve_write_client(config, instance)
+            return _acknowledge_payload(
+                client,
+                host,
+                service,
+                comment,
+                sticky=sticky,
+                notify=notify,
+                expiry_hours=expiry_hours,
+            )
+
+        @mcp.tool()
+        def schedule_downtime(
+            host: str,
+            comment: str,
+            service: str | None = None,
+            instance: str | None = None,
+            hours: float = 2.0,
+            all_services: bool = False,
+        ) -> dict[str, Any]:
+            """Schedule a fixed downtime for a host or service, starting now.
+
+            This mutates Icinga: it suppresses notifications for the window and
+            is attributed to the configured write user. Only available for
+            instances that have write credentials.
+
+            - `host`: exact host name. Required.
+            - `comment`: reason for the downtime. Required.
+            - `service`: service name on `host`; omit to put the host into
+              downtime.
+            - `instance`: deployment name; omit when only one write-capable
+              instance is configured.
+            - `hours`: downtime length in hours from now. Defaults to 2.
+            - `all_services`: when targeting a host, also put all its services
+              into downtime. Ignored for a single service.
+
+            The result includes the created downtime name, which
+            `remove_downtime` can act on.
+            """
+            client = _resolve_write_client(config, instance)
+            return _schedule_downtime_payload(
+                client, host, service, comment, hours=hours, all_services=all_services
+            )
+
+        @mcp.tool()
+        def remove_downtime(
+            host: str,
+            service: str | None = None,
+            instance: str | None = None,
+        ) -> dict[str, Any]:
+            """Remove scheduled downtimes from a host or service.
+
+            This mutates Icinga and is only available for instances that have
+            write credentials.
+
+            - `host`: exact host name. Required.
+            - `service`: service name on `host`; omit to remove the host's own
+              downtimes (service downtimes added via `all_services` are removed
+              with the host downtime).
+            - `instance`: deployment name; omit when only one write-capable
+              instance is configured.
+            """
+            client = _resolve_write_client(config, instance)
+            return _remove_downtime_payload(client, host, service)
+
+        @mcp.tool()
+        def reschedule_check(
+            host: str,
+            service: str | None = None,
+            instance: str | None = None,
+            force: bool = False,
+        ) -> dict[str, Any]:
+            """Trigger an immediate check of a host or service.
+
+            This mutates Icinga (it makes the object run its check now) and is
+            only available for instances that have write credentials.
+
+            - `host`: exact host name. Required.
+            - `service`: service name on `host`; omit to recheck the host.
+            - `instance`: deployment name; omit when only one write-capable
+              instance is configured.
+            - `force`: run the check even if active checks or the time period
+              would normally suppress it. Defaults to false.
+            """
+            client = _resolve_write_client(config, instance)
+            return _reschedule_check_payload(client, host, service, force=force)
 
     return mcp
 

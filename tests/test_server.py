@@ -19,6 +19,7 @@ from mcp_server_icinga.config import (
 from mcp_server_icinga.server import (
     _health_check_payload,
     _resolve_core_client,
+    _resolve_write_client,
     build_server,
 )
 
@@ -28,6 +29,13 @@ _ICINGA2_CORE_TOOLS = {
     'get_service',
     'list_hosts',
     'list_services',
+}
+
+_ICINGA2_WRITE_TOOLS = {
+    'acknowledge_problem',
+    'remove_downtime',
+    'reschedule_check',
+    'schedule_downtime',
 }
 
 # Fake values used only as test fixtures: the path is never opened (only
@@ -232,3 +240,45 @@ def test_resolve_core_client_ambiguous_without_instance() -> None:
     )
     with pytest.raises(ValueError, match='several instances'):
         _resolve_core_client(config)
+
+
+# ---------------------------------------------------------------------------
+# Icinga 2 Core write-tool registration and _resolve_write_client
+# ---------------------------------------------------------------------------
+
+
+def test_build_server_omits_write_tools_without_write_credentials() -> None:
+    config = Config(instances={'prod': _instance_with_core(write=False)})
+    server = build_server(config, _FAKE_CONFIG_PATH)
+    tools = server._tool_manager._tools
+    assert _ICINGA2_WRITE_TOOLS.isdisjoint(tools.keys())
+    # The read-only tools are still there.
+    assert tools.keys() >= _ICINGA2_CORE_TOOLS
+
+
+def test_build_server_registers_write_tools_with_write_credentials() -> None:
+    config = Config(instances={'prod': _instance_with_core(write=True)})
+    server = build_server(config, _FAKE_CONFIG_PATH)
+    assert server._tool_manager._tools.keys() >= _ICINGA2_WRITE_TOOLS
+
+
+def test_resolve_write_client_auto_selects_single() -> None:
+    config = Config(instances={'prod': _instance_with_core(write=True)})
+    assert _resolve_write_client(config).write_author is not None
+
+
+def test_resolve_write_client_rejects_read_only_instance() -> None:
+    config = Config(instances={'prod': _instance_with_core(write=False)})
+    with pytest.raises(ValueError, match='no write credentials'):
+        _resolve_write_client(config, 'prod')
+
+
+def test_resolve_write_client_ambiguous_without_instance() -> None:
+    config = Config(
+        instances={
+            'a': _instance_with_core(write=True),
+            'b': _instance_with_core(write=True),
+        }
+    )
+    with pytest.raises(ValueError, match='several instances have write'):
+        _resolve_write_client(config)
