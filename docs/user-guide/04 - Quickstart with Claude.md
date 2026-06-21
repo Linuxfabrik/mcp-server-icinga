@@ -61,13 +61,19 @@ Restart Claude Desktop. The server appears under the "Connected MCP servers" ind
 
 ### Claude Code
 
-In a project directory, register the server with the `claude mcp` CLI:
+Register the server with the `claude mcp` CLI. With `--scope user` it is available in every project, not just the current directory:
 
 ```bash
-claude mcp add icinga -- mcp-server-icinga
+claude mcp add --scope user icinga -- mcp-server-icinga
 ```
 
-Or write the equivalent JSON into `.mcp.json` at the project root:
+If `mcp-server-icinga` is not on the PATH that Claude Code spawns (common with a virtualenv or source install), pass the absolute path of the binary instead. For the editable install from [Installation](02 - Installation.md) that is the venv's `bin/`:
+
+```bash
+claude mcp add --scope user icinga -- /path/to/mcp-server-icinga/.venv/bin/mcp-server-icinga
+```
+
+Drop `--scope user` to register the server only for the current project (written to `.mcp.json` at the project root). The equivalent JSON is:
 
 ```json
 {
