@@ -1,6 +1,6 @@
 # Quickstart with Claude
 
-This page walks through bringing up `mcp-server-icinga` end-to-end and verifying it works with Claude. At this stage of the project the only tool registered is `health_check`, which confirms the server starts, finds its configuration and reports which backends it knows about. That is enough to validate the installation, the configuration file lookup, the secret injection and the MCP transport in one shot. Real Icinga tools follow in later releases.
+This page brings up `mcp-server-icinga` end-to-end and verifies it with Claude. The smoke test uses `health_check`, which confirms the server starts, finds its configuration and reports which backends it knows about - enough to validate the installation, the config file lookup, the secret injection and the MCP transport in one shot. The catalog and Icinga 2 Core tools then come online as you configure their backends.
 
 
 ## 1. Prepare a minimal configuration
@@ -140,25 +140,15 @@ If anything is off, check the Claude Desktop or Claude Code MCP logs - on Linux 
 
 ## 4. Try the plugin catalog
 
-If you added `monitoring_plugins.catalog_path` to the config, four more tools are now registered. After restarting the MCP client, `health_check` reports `monitoring_plugins_catalog.source: live` and a plugin count. Useful prompts to get a feel for what the catalog knows:
-
-> Use `catalog_info` to tell me where the plugin knowledge comes from.
-
-> List all Linuxfabrik monitoring plugins whose names contain `-version`.
+If you added `monitoring_plugins.catalog_path` to the config, the catalog tools register and `health_check` reports `monitoring_plugins_catalog.source: live` with a plugin count (restart the MCP client first). A couple of quick checks:
 
 > List all plugins that run on Windows.
 
 > Explain the `gitlab-version` plugin. What does it check, what arguments does it take, what states can it return?
 
-> What plugin is behind the Icinga check command `cmd-check-disk-usage`?
-
-> I have a service in Icinga that uses `cmd-check-mailq`. What perfdata does it emit and what states can it go into?
-
-> Which plugins use the `--always-ok` flag? Sample five and show their descriptions.
-
-The last class of prompts is where the catalog pays off: the server can combine `list_plugins`, `explain_plugin` and `find_plugin_for_check_command` in one turn so Claude's reasoning stays grounded in the actual plugin source instead of the LLM's training data.
+This is where the catalog pays off: the server combines its catalog tools in one turn so Claude's reasoning stays grounded in the actual plugin source instead of the LLM's training data. See [Example Prompts](06 - Example Prompts.md) for the full set, including reading a plugin's source and the live host and service tools.
 
 
 ## 5. Iterate
 
-Once the plugin-catalog smoke tests work, fill out the rest of the configuration ([Configuration](03 - Configuration.md)) and watch the remaining backends light up in the next `health_check` response. Later releases of `mcp-server-icinga` will add real Icinga tools on top of the catalog; they appear automatically as the server-side tool list grows.
+Fill out the rest of the configuration ([Configuration](03 - Configuration.md)) and the matching tools light up in the next `health_check` and `tools/list` after a client restart. An instance with a reachable `icinga2_core` backend enables the live host and service tools; adding write credentials enables acknowledge, downtime and recheck. Backends appear automatically as their config sections are filled in.

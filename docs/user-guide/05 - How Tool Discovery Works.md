@@ -131,13 +131,14 @@ The server replies with every registered tool in one message:
       { "name": "catalog_info", "description": "...", "inputSchema": {...} },
       { "name": "list_plugins", "description": "...", "inputSchema": {...} },
       { "name": "explain_plugin", "description": "...", "inputSchema": {...} },
-      { "name": "find_plugin_for_check_command", "description": "...", "inputSchema": {...} }
+      { "name": "find_plugin_for_check_command", "description": "...", "inputSchema": {...} },
+      { "name": "read_plugin_source", "description": "...", "inputSchema": {...} }
     ]
   }
 }
 ```
 
-The tool list depends on what the configuration enabled. With an empty `config.yaml` only `health_check` is in there. With `monitoring_plugins.catalog_path` set, the four catalog tools join. As more backends gain client support (Phase 4 onwards), they appear here automatically when their section is configured. Tools whose backend section is missing from the configuration never enter the registry, so the LLM never sees them and cannot try to call them. That is the project's principle-of-least-privilege boundary; omitting `icinga2_core.write_password` is therefore a real, enforceable read-only mode, not just a hint.
+The tool list depends on what the configuration enabled. With an empty `config.yaml` only `health_check` is in there. With `monitoring_plugins.catalog_path` set, the catalog tools join (`catalog_info`, `list_plugins`, `explain_plugin`, `find_plugin_for_check_command`, `read_plugin_source`). An instance with an `icinga2_core` backend adds the live host and service tools, and write credentials add the action tools. Tools whose backend section is missing from the configuration never enter the registry, so the LLM never sees them and cannot try to call them. That is the project's principle-of-least-privilege boundary; omitting `icinga2_core.write_password` is therefore a real, enforceable read-only mode, not just a hint.
 
 
 ## Step 4: an end-to-end call
@@ -176,7 +177,7 @@ What happens, in order:
         "content": [
           {
             "type": "text",
-            "text": "{\"name\": \"mcp-server-icinga\", \"version\": \"0.0.0\", \"config_path\": \"/home/markusfrei/.config/Linuxfabrik/mcp-server-icinga/config.yaml\", \"backends\": {\"icinga2_core\": false, \"icinga_web\": false, \"icinga_director\": false, \"tsdb\": false}, \"icinga2_core_write_enabled\": false, \"monitoring_plugins_catalog\": {\"source\": \"live\", \"built_at\": \"2026-04-22T08:00:00+00:00\", \"monitoring_plugins_ref\": null, \"plugin_count\": 238}}"
+            "text": "{\"name\": \"mcp-server-icinga\", \"version\": \"0.0.0\", \"config_path\": \"/home/markusfrei/.config/Linuxfabrik/mcp-server-icinga/config.yaml\", \"instances\": {}, \"monitoring_plugins_catalog\": {\"source\": \"live\", \"built_at\": \"2026-04-22T08:00:00+00:00\", \"monitoring_plugins_ref\": null, \"plugin_count\": 251}}"
           }
         ],
         "isError": false
@@ -188,7 +189,7 @@ What happens, in order:
 
 4. **The LLM reads the result.** The tool result is appended to the conversation as a hidden message. The LLM then composes a human-readable answer:
 
-    > Health-Check erfolgreich. Der Server `mcp-server-icinga v0.0.0` laeuft und laedt die Konfig aus `/home/markusfrei/.config/Linuxfabrik/mcp-server-icinga/config.yaml`. Alle Backends (`icinga2_core`, `icinga_web`, `icinga_director`, `tsdb`) sind aktuell nicht konfiguriert. Der Plugin-Katalog laedt live, kennt 238 Plugins.
+    > Health-Check erfolgreich. Der Server `mcp-server-icinga v0.0.0` laeuft und laedt die Konfig aus `/home/markusfrei/.config/Linuxfabrik/mcp-server-icinga/config.yaml`. Aktuell ist keine Icinga-Instanz konfiguriert. Der Plugin-Katalog laedt live, kennt 251 Plugins.
 
 
 ## Why this design matters when you write tools
