@@ -11,6 +11,7 @@ Icinga 2 Core API works without an Icinga Director or TSDB section.
 
 from __future__ import annotations
 
+import ast
 import sys
 import time
 from pathlib import Path
@@ -90,6 +91,84 @@ def _plugin_summary(entry: Any) -> dict[str, Any]:
         'runs_on': entry.runs_on,
         'description': description or None,
     }
+
+
+def _extract_function_source(source: str, function: str) -> str:
+    """Return the source segment of the named top-level function.
+
+    Raises `ValueError` listing the available top-level functions when the
+    name is not found.
+    """
+    tree = ast.parse(source)
+    for node in tree.body:
+        if (
+            isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+            and node.name == function
+        ):
+            segment = ast.get_source_segment(source, node)
+            if segment is not None:
+                return segment
+    available = ', '.join(
+        sorted(
+            node.name
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        )
+    )
+    raise ValueError(
+        f'no top-level function {function!r} in the plugin source. '
+        f'Available functions: {available or "<none>"}.'
+    )
+
+
+def _read_plugin_source_payload(
+    catalog: Catalog,
+    base_dir: Path | None,
+    name: str,
+    function: str | None = None,
+) -> dict[str, Any]:
+    """Return the on-disk source of a plugin, optionally a single function.
+
+    `base_dir` is the monitoring-plugins repository root (the parent of the
+    configured `check-plugins` directory); plugin `source_path` values are
+    relative to it. Raises `ValueError` when the plugin is unknown, when no
+    local checkout is available (bundled-snapshot mode), or when the resolved
+    path escapes the repository root.
+    """
+    entry = catalog.plugins.get(name)
+    if entry is None:
+        raise ValueError(
+            f'unknown plugin {name!r}. Use list_plugins() to discover available names.'
+        )
+    if base_dir is None:
+        raise ValueError(
+            f'source for {name!r} is unavailable: it requires a local catalog, '
+            f'set monitoring_plugins.catalog_path to a monitoring-plugins checkout.'
+        )
+
+    root = Path(base_dir).resolve()
+    path = (root / entry.source_path).resolve()
+    # Defensive: source_path comes from our own loader, but never read outside
+    # the repository root regardless.
+    if root != path and root not in path.parents:
+        raise ValueError(f'refusing to read {entry.source_path!r} outside {root}')
+    try:
+        source = path.read_text(encoding='utf-8')
+    except OSError as exc:
+        raise ValueError(f'cannot read source for {name!r}: {exc}') from exc
+
+    if function is not None:
+        source = _extract_function_source(source, function)
+
+    payload: dict[str, Any] = {
+        'name': name,
+        'source_path': entry.source_path,
+        'line_count': source.count('\n') + 1,
+        'source': source,
+    }
+    if function is not None:
+        payload['function'] = function
+    return payload
 
 
 def _resolve_core_client(
@@ -483,6 +562,30 @@ def build_server(
                 if check_command in entry.director_check_commands:
                     return entry.model_dump(mode='json')
             return None
+
+        @mcp.tool()
+        def read_plugin_source(
+            name: str, function: str | None = None
+        ) -> dict[str, Any]:
+            """Return the Python source code of a monitoring plugin.
+
+            Use this when `explain_plugin(name)` metadata is not enough and you
+            need the actual logic: how thresholds are computed, what each exit
+            state means, or exactly what the check queries. This reads the
+            plugin's real source from the configured local checkout.
+
+            - `name`: exact plugin directory name, e.g. `'disk-usage'`.
+            - `function`: optionally return just one top-level function's
+              source (e.g. `'main'`) instead of the whole file, to save tokens
+              when you only need a specific part.
+
+            Returns the source text, its path within the monitoring-plugins
+            tree and the line count. Raises when the plugin or function is
+            unknown, or when the server runs without a local catalog checkout.
+            """
+            base = config.monitoring_plugins.catalog_path
+            base_dir = base.parent if base is not None else None
+            return _read_plugin_source_payload(catalog, base_dir, name, function)
 
     if any(inst.icinga2_core is not None for inst in config.instances.values()):
 

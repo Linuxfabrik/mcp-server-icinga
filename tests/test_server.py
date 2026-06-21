@@ -171,6 +171,7 @@ def test_build_server_registers_catalog_tools_when_catalog_given() -> None:
         'list_plugins',
         'explain_plugin',
         'find_plugin_for_check_command',
+        'read_plugin_source',
     } <= tools.keys()
 
 

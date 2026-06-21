@@ -186,3 +186,78 @@ def test_classify_state_fallback() -> None:
 def test_load_from_path_missing_directory(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         load_from_path(tmp_path / 'does-not-exist')
+
+
+# ---------------------------------------------------------------------------
+# read_plugin_source helper
+# ---------------------------------------------------------------------------
+
+_SAMPLE_PLUGIN = """\
+#!/usr/bin/env python3
+DESCRIPTION = 'sample'
+
+
+def helper():
+    return 1
+
+
+def main():
+    return helper()
+"""
+
+
+def _catalog_with_source(tmp_path: Path) -> tuple[Catalog, Path]:
+    """Build a one-plugin catalog backed by a real file under tmp_path."""
+    from mcp_server_icinga.plugin_catalog.schema import PluginCatalogEntry
+
+    source_file = tmp_path / 'check-plugins' / 'sample' / 'sample'
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text(_SAMPLE_PLUGIN, encoding='utf-8')
+    entry = PluginCatalogEntry(name='sample', source_path='check-plugins/sample/sample')
+    return Catalog(source='live', plugins={'sample': entry}), tmp_path
+
+
+def test_read_plugin_source_whole_file(tmp_path: Path) -> None:
+    from mcp_server_icinga.server import _read_plugin_source_payload
+
+    catalog, base = _catalog_with_source(tmp_path)
+    result = _read_plugin_source_payload(catalog, base, 'sample')
+    assert result['name'] == 'sample'
+    assert result['source_path'] == 'check-plugins/sample/sample'
+    assert 'def main():' in result['source']
+    assert result['line_count'] == _SAMPLE_PLUGIN.count('\n') + 1
+    assert 'function' not in result
+
+
+def test_read_plugin_source_single_function(tmp_path: Path) -> None:
+    from mcp_server_icinga.server import _read_plugin_source_payload
+
+    catalog, base = _catalog_with_source(tmp_path)
+    result = _read_plugin_source_payload(catalog, base, 'sample', function='main')
+    assert result['function'] == 'main'
+    assert result['source'].startswith('def main():')
+    assert 'def helper():' not in result['source']
+
+
+def test_read_plugin_source_unknown_function_lists_available(tmp_path: Path) -> None:
+    from mcp_server_icinga.server import _read_plugin_source_payload
+
+    catalog, base = _catalog_with_source(tmp_path)
+    with pytest.raises(ValueError, match='helper, main'):
+        _read_plugin_source_payload(catalog, base, 'sample', function='nope')
+
+
+def test_read_plugin_source_unknown_plugin(tmp_path: Path) -> None:
+    from mcp_server_icinga.server import _read_plugin_source_payload
+
+    catalog, base = _catalog_with_source(tmp_path)
+    with pytest.raises(ValueError, match='unknown plugin'):
+        _read_plugin_source_payload(catalog, base, 'ghost')
+
+
+def test_read_plugin_source_requires_local_catalog(tmp_path: Path) -> None:
+    from mcp_server_icinga.server import _read_plugin_source_payload
+
+    catalog, _base = _catalog_with_source(tmp_path)
+    with pytest.raises(ValueError, match='requires a local catalog'):
+        _read_plugin_source_payload(catalog, None, 'sample')
