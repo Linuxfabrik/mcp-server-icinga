@@ -62,5 +62,6 @@ nav:
       - 'Configuration': 'user-guide/03 - Configuration.md'
       - 'Quickstart with Claude': 'user-guide/04 - Quickstart with Claude.md'
       - 'How Tool Discovery Works': 'user-guide/05 - How Tool Discovery Works.md'
+      - 'Example Prompts': 'user-guide/06 - Example Prompts.md'
   - 'Developer Guide':
       - 'Source Layout': 'developer-guide/01 - Source Layout.md'

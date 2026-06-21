@@ -111,6 +111,17 @@ The instance name (`prod` above) is the identifier you reference in chat ("what 
 For the field reference, secret handling and wiring the server into Claude Desktop or Claude Code, see the [Configuration guide](https://linuxfabrik.github.io/mcp-server-icinga/user-guide/03%20-%20Configuration/) and the [Quickstart](https://linuxfabrik.github.io/mcp-server-icinga/user-guide/04%20-%20Quickstart%20with%20Claude/).
 
 
+## Example prompts
+
+What you can ask depends on which backends you configured. The plugin catalog answers questions offline; live host and service state needs a reachable `icinga2_core` instance; acknowledging problems and scheduling downtimes needs write credentials. A few to start with:
+
+- "List all Linuxfabrik monitoring plugins, and explain the `disk-usage` one."
+- "What is currently not OK on `prod-zh`?"
+- "Why is the `disk` service on `db01` critical, and what does that check actually measure?"
+
+See the [Example Prompts guide](https://linuxfabrik.github.io/mcp-server-icinga/user-guide/06%20-%20Example%20Prompts/) for the full set grouped by what each one needs.
+
+
 ## Related Projects
 
 - [Linuxfabrik monitoring-plugins](https://github.com/Linuxfabrik/monitoring-plugins): the check plugin catalog this server understands.
