@@ -24,6 +24,14 @@ from mcp_server_icinga.config import (
     find_config_path,
     load_config,
 )
+from mcp_server_icinga.icinga2_core import (
+    HOST_STATE_CODES,
+    SERVICE_STATE_CODES,
+    Icinga2CoreClient,
+    Icinga2CoreNotFoundError,
+    summarize_host,
+    summarize_service,
+)
 from mcp_server_icinga.plugin_catalog import Catalog, load_from_path
 
 
@@ -80,6 +88,118 @@ def _plugin_summary(entry: Any) -> dict[str, Any]:
         'version': entry.version,
         'runs_on': entry.runs_on,
         'description': description or None,
+    }
+
+
+def _resolve_core_client(config: Config, instance: str) -> Icinga2CoreClient:
+    """Return an Icinga 2 Core client for `instance` or raise a clear error.
+
+    Pure config lookup, no network. Raises `ValueError` when the instance is
+    unknown or has no `icinga2_core` backend, so the LLM gets an actionable
+    message instead of a connection error.
+    """
+    inst = config.instances.get(instance)
+    if inst is None:
+        known = ', '.join(sorted(config.instances)) or '<none>'
+        raise ValueError(
+            f'unknown instance {instance!r}. Configured instances: {known}. '
+            f'Call health_check() to inspect them.'
+        )
+    if inst.icinga2_core is None:
+        raise ValueError(
+            f'instance {instance!r} has no icinga2_core backend configured.'
+        )
+    return Icinga2CoreClient(inst.icinga2_core)
+
+
+def _state_code(state: str, codes: dict[str, int], kind: str) -> int:
+    """Translate a caller-supplied state label into its numeric code."""
+    code = codes.get(state.upper())
+    if code is None:
+        valid = ', '.join(sorted(codes))
+        raise ValueError(f'invalid {kind} state {state!r}. Valid states: {valid}.')
+    return code
+
+
+def _list_hosts_payload(
+    client: Icinga2CoreClient,
+    state: str | None = None,
+    name_contains: str | None = None,
+) -> list[dict[str, Any]]:
+    conditions: list[str] = []
+    filter_vars: dict[str, Any] = {}
+    if state is not None:
+        conditions.append('host.state==host_state')
+        filter_vars['host_state'] = _state_code(state, HOST_STATE_CODES, 'host')
+    if name_contains is not None:
+        conditions.append('match(pattern, host.name)')
+        filter_vars['pattern'] = f'*{name_contains}*'
+    filter_expr = ' && '.join(conditions) or None
+    results = client.query_hosts(filter=filter_expr, filter_vars=filter_vars or None)
+    summaries = [summarize_host(row) for row in results]
+    summaries.sort(key=lambda row: row['name'] or '')
+    return summaries
+
+
+def _list_services_payload(
+    client: Icinga2CoreClient,
+    host: str | None = None,
+    state: str | None = None,
+    name_contains: str | None = None,
+) -> list[dict[str, Any]]:
+    conditions: list[str] = []
+    filter_vars: dict[str, Any] = {}
+    if host is not None:
+        conditions.append('service.host_name==host_name')
+        filter_vars['host_name'] = host
+    if state is not None:
+        conditions.append('service.state==service_state')
+        filter_vars['service_state'] = _state_code(
+            state, SERVICE_STATE_CODES, 'service'
+        )
+    if name_contains is not None:
+        conditions.append('match(pattern, service.name)')
+        filter_vars['pattern'] = f'*{name_contains}*'
+    filter_expr = ' && '.join(conditions) or None
+    results = client.query_services(filter=filter_expr, filter_vars=filter_vars or None)
+    summaries = [summarize_service(row) for row in results]
+    summaries.sort(key=lambda row: row['name'] or '')
+    return summaries
+
+
+def _get_host_payload(client: Icinga2CoreClient, name: str) -> dict[str, Any]:
+    results = client.query_hosts(
+        filter='host.name==host_name', filter_vars={'host_name': name}
+    )
+    if not results:
+        raise Icinga2CoreNotFoundError(f'no host named {name!r}')
+    return summarize_host(results[0])
+
+
+def _get_service_payload(
+    client: Icinga2CoreClient, host: str, service: str
+) -> dict[str, Any]:
+    results = client.query_services(
+        filter='service.host_name==host_name && service.name==service_name',
+        filter_vars={'host_name': host, 'service_name': service},
+    )
+    if not results:
+        raise Icinga2CoreNotFoundError(f'no service {service!r} on host {host!r}')
+    return summarize_service(results[0])
+
+
+def _get_problems_payload(client: Icinga2CoreClient) -> dict[str, Any]:
+    hosts = client.query_hosts(filter='host.state!=0')
+    services = client.query_services(filter='service.state!=0')
+    host_summaries = [summarize_host(row) for row in hosts]
+    service_summaries = [summarize_service(row) for row in services]
+    host_summaries.sort(key=lambda row: row['name'] or '')
+    service_summaries.sort(key=lambda row: row['name'] or '')
+    return {
+        'hosts': host_summaries,
+        'services': service_summaries,
+        'host_problem_count': len(host_summaries),
+        'service_problem_count': len(service_summaries),
     }
 
 
@@ -198,6 +318,109 @@ def build_server(
                 if check_command in entry.director_check_commands:
                     return entry.model_dump(mode='json')
             return None
+
+    if any(inst.icinga2_core is not None for inst in config.instances.values()):
+
+        @mcp.tool()
+        def list_hosts(
+            instance: str,
+            state: str | None = None,
+            name_contains: str | None = None,
+        ) -> list[dict[str, Any]]:
+            """List monitored hosts of one Icinga instance with their state.
+
+            `instance` is the configured deployment name (e.g. `'prod-zh'`).
+            Call `health_check()` to discover the configured instance names.
+
+            Each entry is a compact summary: name, address, current state
+            (`UP`/`DOWN`), soft/hard state type, whether it is acknowledged
+            or in downtime, the last check plugin output and perfdata, and
+            check timestamps.
+
+            Optional filters, combined with logical AND:
+
+            - `state`: keep only hosts in this state, one of `UP`, `DOWN`
+              (case-insensitive).
+            - `name_contains`: case-insensitive substring match against the
+              host name.
+
+            For everything in a problem state across hosts and services at
+            once, prefer `get_problems(instance)`.
+            """
+            client = _resolve_core_client(config, instance)
+            return _list_hosts_payload(client, state=state, name_contains=name_contains)
+
+        @mcp.tool()
+        def list_services(
+            instance: str,
+            host: str | None = None,
+            state: str | None = None,
+            name_contains: str | None = None,
+        ) -> list[dict[str, Any]]:
+            """List monitored services of one Icinga instance with their state.
+
+            `instance` is the configured deployment name (e.g. `'prod-zh'`).
+            Call `health_check()` to discover the configured instance names.
+
+            Each entry is a compact summary: full name (`host!service`), the
+            service and host name, the host's state for context, current
+            service state (`OK`/`WARNING`/`CRITICAL`/`UNKNOWN`), state type,
+            acknowledgement and downtime flags, the check command, the last
+            check plugin output and perfdata, and check timestamps.
+
+            Optional filters, combined with logical AND:
+
+            - `host`: keep only services of this exact host name.
+            - `state`: keep only services in this state, one of `OK`,
+              `WARNING`, `CRITICAL`, `UNKNOWN` (case-insensitive).
+            - `name_contains`: case-insensitive substring match against the
+              service name.
+
+            The `check_command` field bridges to plugin knowledge: pass it to
+            `find_plugin_for_check_command(check_command)` to learn what the
+            service actually checks.
+            """
+            client = _resolve_core_client(config, instance)
+            return _list_services_payload(
+                client, host=host, state=state, name_contains=name_contains
+            )
+
+        @mcp.tool()
+        def get_host(instance: str, name: str) -> dict[str, Any]:
+            """Return the full state summary for a single host.
+
+            `instance` is the configured deployment name (e.g. `'prod-zh'`),
+            `name` is the exact host name. Raises when the host does not
+            exist; use `list_hosts(instance, name_contains=...)` to discover
+            names.
+            """
+            client = _resolve_core_client(config, instance)
+            return _get_host_payload(client, name)
+
+        @mcp.tool()
+        def get_service(instance: str, host: str, service: str) -> dict[str, Any]:
+            """Return the full state summary for a single service.
+
+            `instance` is the configured deployment name (e.g. `'prod-zh'`),
+            `host` is the exact host name and `service` the service name on
+            that host. Raises when the service does not exist; use
+            `list_services(instance, host=...)` to discover names.
+            """
+            client = _resolve_core_client(config, instance)
+            return _get_service_payload(client, host, service)
+
+        @mcp.tool()
+        def get_problems(instance: str) -> dict[str, Any]:
+            """Return everything in a problem state on one Icinga instance.
+
+            `instance` is the configured deployment name (e.g. `'prod-zh'`).
+            Returns all hosts that are not `UP` and all services that are not
+            `OK`, each as a compact summary, plus the respective problem
+            counts. This is the starting point for triage: one call gives the
+            full picture of what is currently alerting.
+            """
+            client = _resolve_core_client(config, instance)
+            return _get_problems_payload(client)
 
     return mcp
 

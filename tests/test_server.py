@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from mcp.server.fastmcp import FastMCP
 
 from mcp_server_icinga import __version__
@@ -15,7 +16,19 @@ from mcp_server_icinga.config import (
     InstanceConfig,
     MonitoringPluginsConfig,
 )
-from mcp_server_icinga.server import _health_check_payload, build_server
+from mcp_server_icinga.server import (
+    _health_check_payload,
+    _resolve_core_client,
+    build_server,
+)
+
+_ICINGA2_CORE_TOOLS = {
+    'get_host',
+    'get_problems',
+    'get_service',
+    'list_hosts',
+    'list_services',
+}
 
 # Fake values used only as test fixtures: the path is never opened (only
 # stringified for display in the health_check payload), and the passwords
@@ -151,3 +164,45 @@ def test_build_server_registers_catalog_tools_when_catalog_given() -> None:
         'explain_plugin',
         'find_plugin_for_check_command',
     } <= tools.keys()
+
+
+# ---------------------------------------------------------------------------
+# Icinga 2 Core tool registration
+# ---------------------------------------------------------------------------
+
+
+def test_build_server_omits_core_tools_without_icinga2_core() -> None:
+    server = build_server(Config(), _FAKE_CONFIG_PATH)
+    tools = server._tool_manager._tools
+    assert _ICINGA2_CORE_TOOLS.isdisjoint(tools.keys())
+
+
+def test_build_server_registers_core_tools_with_icinga2_core() -> None:
+    config = Config(instances={'prod': _instance_with_core()})
+    server = build_server(config, _FAKE_CONFIG_PATH)
+    tools = server._tool_manager._tools
+    assert tools.keys() >= _ICINGA2_CORE_TOOLS
+
+
+# ---------------------------------------------------------------------------
+# _resolve_core_client
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_core_client_unknown_instance() -> None:
+    config = Config(instances={'prod': _instance_with_core()})
+    with pytest.raises(ValueError, match='unknown instance'):
+        _resolve_core_client(config, 'staging')
+
+
+def test_resolve_core_client_missing_backend() -> None:
+    config = Config(instances={'prod': InstanceConfig()})
+    with pytest.raises(ValueError, match='no icinga2_core backend'):
+        _resolve_core_client(config, 'prod')
+
+
+def test_resolve_core_client_returns_client() -> None:
+    from mcp_server_icinga.icinga2_core import Icinga2CoreClient
+
+    config = Config(instances={'prod': _instance_with_core()})
+    assert isinstance(_resolve_core_client(config, 'prod'), Icinga2CoreClient)
