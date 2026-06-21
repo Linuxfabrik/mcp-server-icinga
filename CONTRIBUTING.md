@@ -113,4 +113,4 @@ Common scopes for this project:
 
 ### Developer Guide
 
-Detailed developer documentation will live in [`docs/developer-guide/`](docs/developer-guide/) once the implementation reaches that stage.
+Detailed developer documentation lives in [`docs/developer-guide/`](docs/developer-guide/), starting with a [Source Layout](<docs/developer-guide/01 - Source Layout.md>) walkthrough of every file under `src/`.
