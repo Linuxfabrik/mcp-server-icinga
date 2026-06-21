@@ -19,6 +19,10 @@ These work as soon as `monitoring_plugins.catalog_path` points at a local checko
 
 > Which plugin backs the check command `cmd-check-disk-usage`?
 
+> Show me the source of the `main` function of `disk-usage`.
+
+> Read the full source of the `disk-usage` plugin and explain how it decides between WARNING and CRITICAL.
+
 
 ## Live host and service state
 
