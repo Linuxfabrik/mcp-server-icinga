@@ -15,7 +15,7 @@ Concretely:
 - **Installation lives next to the client, not next to Icinga.** Put the package on your laptop next to Claude Desktop, or on the host where Claude Code runs. The Icinga server keeps running where it always did; the MCP server only needs network access to its REST APIs.
 - **Restarting means restarting the MCP client.** The server is a child process of the client. Edits to the configuration or a freshly installed version of the package take effect after the next client restart.
 
-There is an alternative MCP transport mode, "streamable-http", that runs as a real HTTP daemon and serves multiple clients at once. We do not use it today: stdio matches the way Claude Desktop and Claude Code natively spawn servers, keeps deployment trivial (`pip install`, no service to manage), and avoids exposing yet another network surface. We may add a streamable-http option once a use case (shared team server, MCPO behind authentication, ...) appears.
+There is an alternative MCP transport mode, "streamable-http", that runs as a real HTTP daemon and serves multiple clients at once. We deliberately do not use it: stdio matches the way Claude Desktop and Claude Code natively spawn servers, keeps deployment trivial (`pip install`, no service to manage), avoids exposing another network surface, and keeps the Icinga credentials on the operator's machine instead of concentrating them in a hosted service. The reasoning is recorded in [Design Decisions](../developer-guide/02 - Design Decisions.md).
 
 
 ## What it bridges

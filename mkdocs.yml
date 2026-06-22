@@ -65,3 +65,4 @@ nav:
       - 'Example Prompts': 'user-guide/06 - Example Prompts.md'
   - 'Developer Guide':
       - 'Source Layout': 'developer-guide/01 - Source Layout.md'
+      - 'Design Decisions': 'developer-guide/02 - Design Decisions.md'
