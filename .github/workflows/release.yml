@@ -23,7 +23,7 @@ jobs:
           allow-prereleases: true
 
       - name: 'Install build tools'
-        run: 'pip install build==1.4.2'
+        run: 'pip install --require-hashes --requirement .github/release/requirements.txt'
 
       - name: 'Build package'
         run: 'python -m build'
