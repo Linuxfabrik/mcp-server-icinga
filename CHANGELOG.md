@@ -27,3 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Add User Guide under `docs/user-guide/` covering Introduction, Installation, Configuration, and Quickstart with Claude (Desktop and Code).
 * Add MkDocs-based documentation site at <https://linuxfabrik.github.io/mcp-server-icinga/>, served via GitHub Pages and rebuilt on every merge to `main`.
 * Initial project skeleton with `pyproject.toml`, `README.md`, `CHANGELOG.md`, `LICENSE` (Unlicense), `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md` and `SECURITY.md`.
+
+
+### Security
+
+* The workflows that build the documentation and the PyPI package install their tools from hash-pinned requirements files, so a compromised or resurrected package version cannot slip into a release.
