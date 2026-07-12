@@ -9,7 +9,7 @@
 <div align="center" markdown>
 
 ![GitHub Stars](https://img.shields.io/github/stars/linuxfabrik/mcp-server-icinga)
-[![Star History Chart](https://api.star-history.com/svg?repos=Linuxfabrik/mcp-server-icinga&type=Date)](https://star-history.com/#Linuxfabrik/mcp-server-icinga&Date)
+[![Star History Chart](https://api.star-history.com/chart?repos=Linuxfabrik/mcp-server-icinga&type=date&legend=top-left&sealed_token=6SUm1801mnVVflh1FjdwjwI1jTKV5frTQxeT9BI5GQvcCSalOiWVA9ZX6pLrUmxtmvs1v6KGVThzjW1gGciZf7jpiQbS4713HMIMiGkG-9v7I5GQhnnPIw)](https://www.star-history.com/?repos=Linuxfabrik%2Fmcp-server-icinga&type=date&legend=top-left)
 ![License](https://img.shields.io/github/license/linuxfabrik/mcp-server-icinga)
 ![Python](https://img.shields.io/badge/Python-3.14+-3776ab)
 ![Status](https://img.shields.io/badge/Status-early%20development-orange)
