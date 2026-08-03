@@ -64,55 +64,57 @@ Tracker = "https://github.com/linuxfabrik/mcp-server-icinga/issues/"
 include-package-data = true
 
 [tool.setuptools.dynamic]
-version = { attr = "mcp_server_icinga.__version__" }
+version = { attr = 'mcp_server_icinga.__version__' }
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ['src']
 
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ['tests']
 
 
 # === linters ===
 [tool.ruff]
-target-version = "py313" # py314 not yet recognised by ruff as of 2026-04-21
+line-length = 88
+target-version = 'py313' # py314 not yet recognised by ruff as of 2026-04-21
 
 [tool.ruff.lint]
 select = [
-    "E",    # pycodestyle errors
-    "W",    # pycodestyle warnings
-    "F",    # pyflakes (logic errors)
-    "I",    # isort (import sorting)
-    "B",    # flake8-bugbear (potential bugs)
-    "C4",   # flake8-comprehensions
-    "UP",   # pyupgrade (modernize syntax)
-    "SIM",  # flake8-simplify
-    "TID",  # flake8-tidy-imports
-    "PTH",  # flake8-use-pathlib
-    "RUF",  # Ruff-specific rules
+    'B',    # flake8-bugbear (potential bugs)
+    'C4',   # flake8-comprehensions
+    'E',    # pycodestyle errors
+    'F',    # pyflakes (logic errors)
+    'I',    # isort (import sorting)
+    'PTH',  # flake8-use-pathlib
+    'RUF',  # Ruff-specific rules
+    'SIM',  # flake8-simplify
+    'TID',  # flake8-tidy-imports
+    'UP',   # pyupgrade (modernize syntax)
+    'W',    # pycodestyle warnings
 ]
 ignore = [
-    "E501",  # line too long
+    'E501',  # line too long
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["mcp_server_icinga"]
+known-first-party = ['mcp_server_icinga']
 
 [tool.ruff.format]
-quote-style = "single"
+docstring-code-format = true
+quote-style = 'single'
 
 [tool.bandit]
 # B110 (try/except/pass) and B112 (try/except/continue): intentional patterns
 # for graceful degradation in a long-running server.
 # B311 (pseudo-random): not used for cryptographic purposes.
-skips = ["B110", "B112", "B311"]
+skips = ['B110', 'B112', 'B311']
 
 [tool.bandit.assert_used]
-# pytest-style asserts are idiomatic in tests/, but bandit still scans the
-# directory for other real issues.
-skips = ["*/tests/*.py", "tests/*.py"]
+# pytest relies on the `assert` statement, so B101 does not apply under tests/.
+# bandit still scans the directory for every other finding.
+skips = ['*/tests/*.py', 'tests/*.py']
 
 [tool.vulture]
 min_confidence = 80
-paths = ["src/mcp_server_icinga"]
+paths = ['src/mcp_server_icinga']
