@@ -49,7 +49,6 @@ validation:
   anchors: 'info'
 
 not_in_nav: |
-  CHANGELOG.md
   CODE_OF_CONDUCT.md
 
 nav:
@@ -64,5 +63,6 @@ nav:
   - 'Developer Guide':
       - 'Source Layout': 'developer-guide/01 - Source Layout.md'
       - 'Design Decisions': 'developer-guide/02 - Design Decisions.md'
+  - 'Changelog': 'CHANGELOG.md'
   - 'Contributing': 'contributing.md'
   - 'Security': 'security.md'
