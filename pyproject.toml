@@ -18,7 +18,7 @@ classifiers = [
 description = "Model Context Protocol (MCP) server for Icinga 2 Core, Icinga Web, Icinga Director and the Linuxfabrik monitoring-plugins catalog."
 dependencies = [
     "httpx>=0.27,<1.0",
-    "mcp~=1.27",
+    "mcp>=1.27,<3.0",
     "pydantic~=2.9",
     "pyyaml~=6.0",
 ]
