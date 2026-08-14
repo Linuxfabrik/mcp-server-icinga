@@ -4,10 +4,11 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from mcp_server_icinga import __version__
 from mcp_server_icinga.config import (
@@ -46,6 +47,15 @@ _ICINGA2_WRITE_TOOLS = {
 _FAKE_CONFIG_PATH = Path('/tmp/mcp-test-config.yaml')  # nosec B108
 _FAKE_READ_PASSWORD = 'linuxfabrik'  # nosec B105
 _FAKE_WRITE_PASSWORD = 'linuxfabrik'  # nosec B105
+
+
+def _tool_names(server: MCPServer) -> set[str]:
+    """Return the names of the tools registered on `server`.
+
+    `list_tools()` is the SDK's public listing API and a coroutine, so these
+    synchronous tests drive it through `asyncio.run()`.
+    """
+    return {tool.name for tool in asyncio.run(server.list_tools())}
 
 
 def _instance_with_core(write: bool = False) -> InstanceConfig:
@@ -144,14 +154,14 @@ def test_health_check_payload_catalog_loaded() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_build_server_returns_fastmcp_instance() -> None:
+def test_build_server_returns_mcpserver_instance() -> None:
     server = build_server(Config(), _FAKE_CONFIG_PATH)
-    assert isinstance(server, FastMCP)
+    assert isinstance(server, MCPServer)
 
 
 def test_build_server_registers_health_check_tool_only_when_no_catalog() -> None:
     server = build_server(Config(), _FAKE_CONFIG_PATH)
-    tools = server._tool_manager._tools
+    tools = _tool_names(server)
     assert 'health_check' in tools
     assert 'catalog_info' not in tools
     assert 'list_plugins' not in tools
@@ -164,7 +174,7 @@ def test_build_server_registers_catalog_tools_when_catalog_given() -> None:
 
     empty_catalog = Catalog(source='live', plugins={})
     server = build_server(Config(), _FAKE_CONFIG_PATH, catalog=empty_catalog)
-    tools = server._tool_manager._tools
+    tools = _tool_names(server)
     assert {
         'health_check',
         'catalog_info',
@@ -172,7 +182,7 @@ def test_build_server_registers_catalog_tools_when_catalog_given() -> None:
         'explain_plugin',
         'find_plugin_for_check_command',
         'read_plugin_source',
-    } <= tools.keys()
+    } <= tools
 
 
 # ---------------------------------------------------------------------------
@@ -182,15 +192,15 @@ def test_build_server_registers_catalog_tools_when_catalog_given() -> None:
 
 def test_build_server_omits_core_tools_without_icinga2_core() -> None:
     server = build_server(Config(), _FAKE_CONFIG_PATH)
-    tools = server._tool_manager._tools
-    assert _ICINGA2_CORE_TOOLS.isdisjoint(tools.keys())
+    tools = _tool_names(server)
+    assert _ICINGA2_CORE_TOOLS.isdisjoint(tools)
 
 
 def test_build_server_registers_core_tools_with_icinga2_core() -> None:
     config = Config(instances={'prod': _instance_with_core()})
     server = build_server(config, _FAKE_CONFIG_PATH)
-    tools = server._tool_manager._tools
-    assert tools.keys() >= _ICINGA2_CORE_TOOLS
+    tools = _tool_names(server)
+    assert tools >= _ICINGA2_CORE_TOOLS
 
 
 # ---------------------------------------------------------------------------
@@ -251,16 +261,16 @@ def test_resolve_core_client_ambiguous_without_instance() -> None:
 def test_build_server_omits_write_tools_without_write_credentials() -> None:
     config = Config(instances={'prod': _instance_with_core(write=False)})
     server = build_server(config, _FAKE_CONFIG_PATH)
-    tools = server._tool_manager._tools
-    assert _ICINGA2_WRITE_TOOLS.isdisjoint(tools.keys())
+    tools = _tool_names(server)
+    assert _ICINGA2_WRITE_TOOLS.isdisjoint(tools)
     # The read-only tools are still there.
-    assert tools.keys() >= _ICINGA2_CORE_TOOLS
+    assert tools >= _ICINGA2_CORE_TOOLS
 
 
 def test_build_server_registers_write_tools_with_write_credentials() -> None:
     config = Config(instances={'prod': _instance_with_core(write=True)})
     server = build_server(config, _FAKE_CONFIG_PATH)
-    assert server._tool_manager._tools.keys() >= _ICINGA2_WRITE_TOOLS
+    assert _tool_names(server) >= _ICINGA2_WRITE_TOOLS
 
 
 def test_resolve_write_client_auto_selects_single() -> None:

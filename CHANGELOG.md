@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The configuration schema groups all per-deployment backends under `instances.<name>`; the previous flat layout with `icinga2_core:` at the top level is rejected with a clear error. Wrap an existing flat configuration in `instances:` with a name of your choice, for example `instances.default:`.
 * The `health_check` payload replaces the `backends` and `icinga2_core_write_enabled` keys with a per-instance map under `instances`, where each value carries the same flags, and `monitoring_plugins_catalog` is always a dict instead of sometimes being a string.
+* The server needs version 2 of the `mcp` Python SDK. A fresh installation picks it up on its own; an existing virtual environment still holding version 1 has to be upgraded, otherwise the server fails to start.
 
 ### Added
 
@@ -24,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Add User Guide chapter "How Tool Discovery Works", which walks through what happens between writing a Python function in `server.py` and Claude calling it from a chat prompt, showing the JSON-Schema each tool produces and the `tools/list` and `tools/call` payloads on the wire.
 * Add multi-instance support, so a single MCP server can talk to several Icinga deployments (tenants, sites, environments) under operator-chosen names such as `prod-zh` or `customer-acme`, with Icinga-facing tools taking an `instance` parameter. The `monitoring_plugins` catalog stays global, since the same plugins apply across every deployment.
 * Add the `!file /path/to/secret-file` YAML tag for sourcing secrets from disk instead of the environment, stripping trailing newlines so files written by systemd `LoadCredential=`, Docker and Podman secrets or a plain `echo` work without surprises.
-* Add MCP stdio server skeleton built on the `mcp` Python SDK (`FastMCP`), registered as the `mcp-server-icinga` console script and runnable via `python -m mcp_server_icinga`. Ships one tool, `health_check`, that confirms the server is up and reports which backends are configured.
+* Add MCP stdio server skeleton built on the `mcp` Python SDK, registered as the `mcp-server-icinga` console script and runnable via `python -m mcp_server_icinga`. Ships one tool, `health_check`, that confirms the server is up and reports which backends are configured.
 * Add User Guide under `docs/user-guide/` covering Introduction, Installation, Configuration, and Quickstart with Claude (Desktop and Code).
 * Add MkDocs-based documentation site at <https://linuxfabrik.github.io/mcp-server-icinga/>, served via GitHub Pages and rebuilt on every merge to `main`.
 * Initial project skeleton with `pyproject.toml`, `README.md`, `CHANGELOG.md`, `LICENSE` (Unlicense), `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md` and `SECURITY.md`.

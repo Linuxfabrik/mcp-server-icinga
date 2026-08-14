@@ -5,7 +5,7 @@ Concrete walk-through of what happens between "I write a Python function in `ser
 
 ## The big picture, in four steps
 
-1. **Source.** A Python function in `src/mcp_server_icinga/server.py` is decorated with `@mcp.tool()` from the `mcp` SDK's `FastMCP` API.
+1. **Source.** A Python function in `src/mcp_server_icinga/server.py` is decorated with `@server.tool()` from the `mcp` SDK's `MCPServer` API.
 2. **Registration.** When `build_server()` runs at startup, the decorator inspects the function's docstring and type hints and produces a JSON-Schema description of the tool. That description goes into a per-server tool registry.
 3. **Handshake.** When the MCP client (Claude Desktop, Claude Code, ...) spawns the server it asks `tools/list`. The server returns the registry as JSON. The client injects this list into the LLM's context for every following turn.
 4. **Call.** Given a user message, the LLM picks a tool from the list, emits a structured `tools/call`, the server runs the underlying Python function, and the LLM turns the result into a natural-language reply.
@@ -18,11 +18,11 @@ Each step gets a section below with the real bytes that flow.
 The full registration of `health_check` lives in [`src/mcp_server_icinga/server.py`](https://github.com/Linuxfabrik/mcp-server-icinga/blob/main/src/mcp_server_icinga/server.py). Reduced to the parts the MCP layer actually consumes:
 
 ```python
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-mcp = FastMCP('Linuxfabrik Icinga')
+server = MCPServer('Linuxfabrik Icinga')
 
-@mcp.tool()
+@server.tool()
 def health_check() -> dict[str, Any]:
     """Report server status and which backends are configured.
 
@@ -46,7 +46,7 @@ Three things matter:
 
 ## Step 2: what the decorator turns that into
 
-`@mcp.tool()` walks the function signature and docstring, derives a JSON-Schema description and registers everything in `FastMCP._tool_manager`. The registered entry for `health_check` looks like this when serialised, with the `description` value shortened here for readability (in the actual payload it is the full docstring from above, with line breaks escaped as `\n`):
+`@server.tool()` walks the function signature and docstring, derives a JSON-Schema description and registers everything in the server's tool registry. The registered entry for `health_check` looks like this when serialised, with the `description` value shortened here for readability (in the actual payload it is the full docstring from above, with line breaks escaped as `\n`):
 
 ```json
 {
@@ -166,7 +166,7 @@ What happens, in order:
     }
     ```
 
-3. **The server runs the function.** FastMCP looks up `health_check`, validates the (empty) arguments against the input schema, calls the Python function, captures its return value, and wraps it in an MCP tool-result message:
+3. **The server runs the function.** The server looks up `health_check`, validates the (empty) arguments against the input schema, calls the Python function, captures its return value, and wraps it in an MCP tool-result message:
 
     ```json
     // Server -> client

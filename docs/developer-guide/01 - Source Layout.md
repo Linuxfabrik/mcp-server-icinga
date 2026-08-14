@@ -24,7 +24,7 @@ src/mcp_server_icinga/
 The heart of the project and the right place to start reading. It owns:
 
 - `main()`: the process entrypoint behind both the `mcp-server-icinga` console script and `python -m mcp_server_icinga`. It locates and loads the configuration, optionally loads the monitoring-plugins catalog, builds the server and runs the stdio event loop.
-- `build_server()`: wires a `FastMCP` instance and registers tools conditionally. A tool is only exposed when its backend is present in the loaded configuration. An instance without `icinga2_core` gets no host or service tools, and a deployment without a catalog path gets no catalog tools. This registration step is a real least-privilege boundary, not cosmetic: a tool that is never registered cannot be called.
+- `build_server()`: wires an `MCPServer` instance and registers tools conditionally. A tool is only exposed when its backend is present in the loaded configuration. An instance without `icinga2_core` gets no host or service tools, and a deployment without a catalog path gets no catalog tools. This registration step is a real least-privilege boundary, not cosmetic: a tool that is never registered cannot be called.
 - The tool functions themselves. Their docstrings are the LLM-facing API surface, so they are written for the model, not just for a human reader.
 - The pure payload helpers (`_health_check_payload`, `_list_hosts_payload`, `_get_problems_payload`, ...). These do the actual work and contain no MCP machinery, so they are unit-tested directly without spinning up a server or touching the network. The decorated tool functions stay thin wrappers around them.
 

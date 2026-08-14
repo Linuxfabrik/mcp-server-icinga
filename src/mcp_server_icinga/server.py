@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from mcp_server_icinga import __version__
 from mcp_server_icinga.config import (
@@ -42,7 +42,7 @@ def _health_check_payload(
 ) -> dict[str, Any]:
     """Compute the payload returned by the `health_check` tool.
 
-    Pure function: no network, no side effects. Lives outside the FastMCP
+    Pure function: no network, no side effects. Lives outside the tool
     decorator wrapper so it can be unit-tested without spinning up the
     server.
     """
@@ -449,17 +449,21 @@ def _reschedule_check_payload(
 
 def build_server(
     config: Config, config_path: Path, catalog: Catalog | None = None
-) -> FastMCP:
-    """Wire a FastMCP instance with the tools matching the loaded config.
+) -> MCPServer:
+    """Wire an MCPServer instance with the tools matching the loaded config.
 
     Catalog-backed tools (list_plugins, explain_plugin,
     find_plugin_for_check_command, catalog_info) are only registered when a
     catalog was loaded successfully. That follows the principle-of-least-
     privilege pattern: unconfigured backends produce no tools.
     """
-    mcp = FastMCP('Linuxfabrik Icinga')
+    # The tool handlers below are plain `def`, which the SDK runs on a worker
+    # thread rather than on the event loop. They therefore must not reach for
+    # the running loop or keep state in thread locals. Verified against mcp
+    # 2.0.0 on Python 3.14.
+    server = MCPServer('Linuxfabrik Icinga')
 
-    @mcp.tool()
+    @server.tool()
     def health_check() -> dict[str, Any]:
         """Report server status and which backends are configured.
 
@@ -475,7 +479,7 @@ def build_server(
 
     if catalog is not None:
 
-        @mcp.tool()
+        @server.tool()
         def catalog_info() -> dict[str, Any]:
             """Report where the Linuxfabrik monitoring-plugins catalog knowledge
             comes from and when it was materialised.
@@ -491,7 +495,7 @@ def build_server(
                 'plugin_count': len(catalog.plugins),
             }
 
-        @mcp.tool()
+        @server.tool()
         def list_plugins(
             runs_on: str | None = None, name_contains: str | None = None
         ) -> list[dict[str, Any]]:
@@ -520,7 +524,7 @@ def build_server(
             result.sort(key=lambda row: row['name'])
             return result
 
-        @mcp.tool()
+        @server.tool()
         def explain_plugin(name: str) -> dict[str, Any]:
             """Return the full catalog entry for a plugin.
 
@@ -543,7 +547,7 @@ def build_server(
                 )
             return entry.model_dump(mode='json')
 
-        @mcp.tool()
+        @server.tool()
         def find_plugin_for_check_command(
             check_command: str,
         ) -> dict[str, Any] | None:
@@ -563,7 +567,7 @@ def build_server(
                     return entry.model_dump(mode='json')
             return None
 
-        @mcp.tool()
+        @server.tool()
         def read_plugin_source(
             name: str, function: str | None = None
         ) -> dict[str, Any]:
@@ -589,7 +593,7 @@ def build_server(
 
     if any(inst.icinga2_core is not None for inst in config.instances.values()):
 
-        @mcp.tool()
+        @server.tool()
         def list_hosts(
             instance: str | None = None,
             state: str | None = None,
@@ -619,7 +623,7 @@ def build_server(
             client = _resolve_core_client(config, instance)
             return _list_hosts_payload(client, state=state, name_contains=name_contains)
 
-        @mcp.tool()
+        @server.tool()
         def list_services(
             instance: str | None = None,
             host: str | None = None,
@@ -655,7 +659,7 @@ def build_server(
                 client, host=host, state=state, name_contains=name_contains
             )
 
-        @mcp.tool()
+        @server.tool()
         def get_host(name: str, instance: str | None = None) -> dict[str, Any]:
             """Return the full state summary for a single host.
 
@@ -667,7 +671,7 @@ def build_server(
             client = _resolve_core_client(config, instance)
             return _get_host_payload(client, name)
 
-        @mcp.tool()
+        @server.tool()
         def get_service(
             host: str, service: str, instance: str | None = None
         ) -> dict[str, Any]:
@@ -682,7 +686,7 @@ def build_server(
             client = _resolve_core_client(config, instance)
             return _get_service_payload(client, host, service)
 
-        @mcp.tool()
+        @server.tool()
         def get_problems(instance: str | None = None) -> dict[str, Any]:
             """Return everything in a problem state on one Icinga instance.
 
@@ -701,7 +705,7 @@ def build_server(
         for inst in config.instances.values()
     ):
 
-        @mcp.tool()
+        @server.tool()
         def acknowledge_problem(
             host: str,
             comment: str,
@@ -740,7 +744,7 @@ def build_server(
                 expiry_hours=expiry_hours,
             )
 
-        @mcp.tool()
+        @server.tool()
         def schedule_downtime(
             host: str,
             comment: str,
@@ -773,7 +777,7 @@ def build_server(
                 client, host, service, comment, hours=hours, all_services=all_services
             )
 
-        @mcp.tool()
+        @server.tool()
         def remove_downtime(
             host: str,
             service: str | None = None,
@@ -794,7 +798,7 @@ def build_server(
             client = _resolve_write_client(config, instance)
             return _remove_downtime_payload(client, host, service)
 
-        @mcp.tool()
+        @server.tool()
         def reschedule_check(
             host: str,
             service: str | None = None,
@@ -816,7 +820,7 @@ def build_server(
             client = _resolve_write_client(config, instance)
             return _reschedule_check_payload(client, host, service, force=force)
 
-    return mcp
+    return server
 
 
 def main() -> int:
