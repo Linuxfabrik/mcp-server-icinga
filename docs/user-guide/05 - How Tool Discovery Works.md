@@ -22,6 +22,7 @@ from mcp.server.mcpserver import MCPServer
 
 server = MCPServer('Linuxfabrik Icinga')
 
+
 @server.tool()
 def health_check() -> dict[str, Any]:
     """Report server status and which backends are configured.
