@@ -34,11 +34,10 @@ jobs:
         with:
           python-version: '${{ matrix.python-version }}'
 
-      - name: 'Install pytest'
+      # pytest and the runtime dependencies, all hash-pinned. The package itself
+      # is not installed: pytest imports it from `src` (see pyproject.toml).
+      - name: 'Install pytest and the runtime dependencies'
         run: 'pip install --require-hashes --requirement .github/pytest/requirements.txt'
-
-      - name: 'Install mcp-server-icinga'
-        run: 'pip install --editable .'
 
       - name: 'Run the test suite'
         run: 'pytest'

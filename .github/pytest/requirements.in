@@ -2,3 +2,11 @@
 # Keep the version inside the range declared for the 'dev' dependency group
 # in pyproject.toml.
 pytest>=9.0.2,<9.2.0
+
+# The runtime dependencies, installed from here with hashes instead of through
+# an unpinned `pip install --editable .`. Keep them in step with
+# `[project] dependencies` in pyproject.toml.
+httpx>=0.27,<1.0
+mcp>=2.0,<3.0
+pydantic~=2.9
+pyyaml~=6.0
