@@ -89,5 +89,6 @@ cython_debug/
 /docs/contributing.md
 /docs/security.md
 
-# Claude Code local settings and session files
-.claude/
+# Claude Code local settings and personal instructions
+.claude/settings.local.json
+CLAUDE.local.md
