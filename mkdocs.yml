@@ -62,8 +62,8 @@ nav:
       - 'How Tool Discovery Works': 'user-guide/05 - How Tool Discovery Works.md'
       - 'Example Prompts': 'user-guide/06 - Example Prompts.md'
   - 'Developer Guide':
-      - 'Source Layout': 'developer-guide/01 - Source Layout.md'
-      - 'Design Decisions': 'developer-guide/02 - Design Decisions.md'
+      - 'Source Layout': 'developer-guide/source-layout.md'
+      - 'Design Decisions': 'developer-guide/design-decisions.md'
   - 'Changelog': 'CHANGELOG.md'
   - 'Contributing': 'contributing.md'
   - 'Security': 'security.md'

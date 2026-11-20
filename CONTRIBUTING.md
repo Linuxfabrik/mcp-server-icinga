@@ -183,5 +183,5 @@ Read the file that matches the task before changing code:
 
 | File | Read before |
 |---|---|
-| [docs/developer-guide/01 - Source Layout.md](<docs/developer-guide/01 - Source Layout.md>) | changing or adding a file under `src/`; it walks every file there |
-| [docs/developer-guide/02 - Design Decisions.md](<docs/developer-guide/02 - Design Decisions.md>) | changing the deployment model, the transport or the shape of the tools; it records why they are as they are |
+| [design-decisions.md](docs/developer-guide/design-decisions.md) | changing the deployment model, the transport or the shape of the tools; it records why they are as they are |
+| [source-layout.md](docs/developer-guide/source-layout.md) | changing or adding a file under `src/`; it walks every file there |
